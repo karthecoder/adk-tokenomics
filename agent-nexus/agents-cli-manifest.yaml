@@ -1,0 +1,14 @@
+name: agent-nexus
+acli_version: 0.3.1
+agent_directory: app
+region: us-east1
+base_template: adk
+generated_at: '2026-08-04T15:16:43.071190+00:00'
+language: python
+create_params:
+  deployment_target: cloud_run
+  session_type: none
+  cicd_runner: skip
+  include_data_ingestion: false
+  datastore: none
+  agent_guidance_filename: GEMINI.md

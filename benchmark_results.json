@@ -1,0 +1,66 @@
+{
+  "status": "success",
+  "timestamp": 1785856087.4644191,
+  "naive": {
+    "model": "Gemini 3.1 Pro (Naive Core)",
+    "input_fresh": 120400,
+    "input_cached": 0,
+    "output": 15200,
+    "cost": 0.34,
+    "latency": 18.4,
+    "steps": [
+      {
+        "name": "Requirements Parsing",
+        "model": "Gemini 3.1 Pro",
+        "input": 25000,
+        "output": 1200,
+        "cached": 0
+      },
+      {
+        "name": "Code Formatting & Syntax Check",
+        "model": "Gemini 3.1 Pro",
+        "input": 35000,
+        "output": 2800,
+        "cached": 0
+      },
+      {
+        "name": "Logical Error Analysis",
+        "model": "Gemini 3.1 Pro",
+        "input": 60400,
+        "output": 11200,
+        "cached": 0
+      }
+    ]
+  },
+  "optimized": {
+    "model": "Agent Nexus Stack",
+    "input_fresh": 32500,
+    "input_cached": 78000,
+    "output": 14800,
+    "cost": 0.16,
+    "latency": 6.2,
+    "steps": [
+      {
+        "name": "Requirements Parsing",
+        "model": "Gemini 3.1 Pro",
+        "input": 25000,
+        "output": 1200,
+        "cached": 0
+      },
+      {
+        "name": "Code Formatting & Syntax Check",
+        "model": "Gemini 3.5 Flash Lite",
+        "input": 5000,
+        "output": 2800,
+        "cached": 20000
+      },
+      {
+        "name": "Logical Error Analysis",
+        "model": "Gemini 3.5 Flash",
+        "input": 2500,
+        "output": 10800,
+        "cached": 58000
+      }
+    ]
+  }
+}

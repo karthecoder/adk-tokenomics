@@ -1,0 +1,32 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "case_1_greeting",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Hello, what can you help me with?"}]
+      }
+    },
+    {
+      "eval_case_id": "case_2_model_check",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Which model are you using to generate responses?"}]
+      }
+    },
+    {
+      "eval_case_id": "case_3_off_catalog_reykjavik",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Can you tell me more about Reykjavik?"}]
+      }
+    },
+    {
+      "eval_case_id": "case_4_on_catalog_paris",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Can you list the recommended hotels in Paris?"}]
+      }
+    }
+  ]
+}

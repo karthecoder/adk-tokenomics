@@ -1,0 +1,13 @@
+======================================================================
+               ADK PLAYGROUND LIVE TOKEN LEDGER
+======================================================================
+[SYS] Initialized. Awaiting your messages in the playground...
+[10:33:54] Model: gemini-flash-latest | Input: 921 (Cached: 0) | Output: 10
+[10:33:55] Model: gemini-flash-latest | Input: 941 (Cached: 0) | Output: 47
+[10:35:08] Model: gemini-flash-latest | Input: 996 (Cached: 0) | Output: 12
+[10:35:09] Model: gemini-flash-latest | Input: 1044 (Cached: 0) | Output: 12
+[10:35:09] Model: gemini-flash-latest | Input: 1092 (Cached: 0) | Output: 37
+[10:38:09] Model: gemini-flash-latest | Input: 150 (Cached: 0) | Output: 165
+[10:38:36] Model: gemini-flash-latest | Input: 621 (Cached: 0) | Output: 437
+[10:39:59] Model: gemini-3.1-pro-preview | Input: 10553 (Cached: 0) | Output: 19
+[10:40:17] Model: gemini-3.1-pro-preview | Input: 10585 (Cached: 10554) | Output: 255

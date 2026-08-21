@@ -1,0 +1,24 @@
+# Environment and secrets
+.env
+*.env.local
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# ADK build & artifacts
+.adk/
+agent-nexus/.adk/
+agent-nexus/artifacts/
+
+# Temporary logs & test artifacts
+*.log
+scratch/

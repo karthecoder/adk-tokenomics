@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Agent Token Control Tower</title>
+  <link rel="stylesheet" href="styles.css?v=4">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="premium-theme">
+  <!-- Glowing ambient background spots -->
+  <div class="glow-blob blob-blue"></div>
+  <div class="glow-blob blob-green"></div>
+
+  <div class="dashboard-wrapper">
+    
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar glass-card">
+      <div class="brand-group">
+        <div class="brand-icon-wrapper">
+          <span class="icon-flash">⚡</span>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">Token Control Tower</h1>
+          <p class="brand-subtitle">Multi-Model Context & Cost Optimizer</p>
+        </div>
+      </div>
+      
+      <div class="nav-controls">
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-session-select">Session:</label>
+          <select id="adk-session-select" class="select-premium">
+            <option value="global">All Sessions (Global Aggregate)</option>
+          </select>
+        </div>
+
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-app-select">App Filter:</label>
+          <select id="adk-app-select" class="select-premium">
+            <option value="all">All Applications</option>
+            <option value="naive_app">1. Naive Monolithic</option>
+            <option value="caching_app">2. Context Caching</option>
+            <option value="compaction_app">3. History Compaction</option>
+            <option value="skills_app">4. Modular Skills</option>
+          </select>
+        </div>
+
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-model-select">Active Model:</label>
+          <select id="adk-model-select" class="select-premium" style="border-color: rgba(59, 130, 246, 0.3); background: rgba(59, 130, 246, 0.08); font-weight: 600;">
+            <option value="publishers/google/models/gemini-3.5-flash">Gemini 3.5 Flash</option>
+            <option value="publishers/google/models/gemini-3.6-flash">Gemini 3.6 Flash</option>
+            <option value="publishers/google/models/gemini-3.7-flash">Gemini 3.7 Flash</option>
+            <option value="claude-sonnet-5">Claude Sonnet 5</option>
+          </select>
+        </div>
+
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-thinking-select">Thinking Budget:</label>
+          <select id="adk-thinking-select" class="select-premium" style="border-color: rgba(168, 85, 247, 0.3); background: rgba(168, 85, 247, 0.08); font-weight: 600;">
+            <option value="0">0 (Off)</option>
+            <option value="1024">1024 (Low)</option>
+            <option value="4096">4096 (High)</option>
+            <option value="-1">-1 (Dynamic)</option>
+          </select>
+        </div>
+
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-maxtokens-select">Max Output Tokens:</label>
+          <select id="adk-maxtokens-select" class="select-premium" style="border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08); font-weight: 600;">
+            <option value="1024">1024 Tokens</option>
+            <option value="2048">2048 Tokens</option>
+            <option value="4096">4096 Tokens</option>
+            <option value="8192" selected>8192 Tokens (Default)</option>
+            <option value="16384">16384 Tokens</option>
+          </select>
+        </div>
+        
+        <div class="poll-status-pill">
+          <span class="pulse-dot green"></span>
+          <span style="font-size:0.75rem; font-weight:600; color:var(--color-text-muted);">Syncing BQ</span>
+        </div>
+
+        <button class="btn btn-premium-primary" id="btn-manage-models" style="margin-right:0.5rem; background: linear-gradient(135deg, #3b82f6, #6366f1); color: #ffffff; border: none; font-weight: 600;">
+          Manage Models ⚙️
+        </button>
+
+        <button class="btn btn-premium-danger" id="btn-clear-metrics">
+          Clear Logs
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero KPI Cards Row -->
+    <section class="kpi-row">
+      <!-- Card 1: Total Cost -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper kpi-primary">💵</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Accumulated Session Spend</span>
+          <h2 class="kpi-value" id="kpi-total-cost">$0.00000</h2>
+          <span class="kpi-trend" id="kpi-cost-desc">Active session footprint</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Cache Ratio -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper kpi-success">💾</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Prompt Cache Read Ratio</span>
+          <h2 class="kpi-value" id="kpi-cache-ratio">0.0%</h2>
+          <div class="kpi-progress-bar-container">
+            <div class="kpi-progress-bar" id="kpi-cache-bar" style="width: 0%;"></div>
+          </div>
+          <span class="kpi-trend" id="kpi-cache-desc">Cached tokens / Total input</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Max Savings -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper kpi-warning">⚡</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Peak Cost Reduction</span>
+          <h2 class="kpi-value savings-text" id="kpi-max-savings">0%</h2>
+          <span class="kpi-trend" id="kpi-savings-desc">Against naive monolithic baseline</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Reasoning & Output Tokens -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">🧠</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Reasoning & Output Tokens</span>
+          <h2 class="kpi-value" id="kpi-output-tokens" style="color: #c084fc;">0</h2>
+          <span class="kpi-trend" id="kpi-output-desc">Visible: 0 | Thoughts: 0 (0%)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Split-Screen Workspace -->
+    <main class="split-workspace-grid">
+      
+      <!-- Left Column (60%): Embedded ADK Web Chat UI -->
+      <div class="glass-card chat-panel">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h3 class="panel-title" style="color:var(--color-primary);">ADK Interactive Agent Playground</h3>
+            <p class="panel-subtitle">Chat in real-time & observe event traces live</p>
+          </div>
+          <span class="badge badge-success">Port 8082 🟢</span>
+        </div>
+        <div class="chat-frame-wrapper" style="border-radius: 12px; overflow: hidden; height: 880px;">
+          <iframe id="adk-chat-frame" src="http://localhost:8082" style="width: 100%; height: 100%; border: none; background: #0f172a;"></iframe>
+        </div>
+      </div>
+
+      <!-- Right Column (40%): Telemetry Ledger & Visual Charts -->
+      <div class="telemetry-panel">
+        
+        <!-- Live Ledger Table -->
+        <div class="glass-card table-panel" style="margin-bottom: 1.5rem;">
+          <div class="panel-header">
+            <h3 class="panel-title">Real-Time Playground Cost Ledger</h3>
+            <p class="panel-subtitle">Performance breakdown of the 4 optimization levels</p>
+          </div>
+          <div class="table-container">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Scenario Application</th>
+                  <th style="text-align:center;">Turns</th>
+                  <th>Fresh Input</th>
+                  <th>Cached Input</th>
+                  <th>Output</th>
+                  <th>Thinking</th>
+                  <th>Est. Cost</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="adk-live-table-body">
+                <tr>
+                  <td colspan="8" style="text-align: center; color: var(--color-text-muted); padding: 3rem;">
+                    <div class="loading-spinner"></div>
+                    Awaiting BigQuery session synchronization...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="poll-setting-footer">
+            <span style="font-size:0.8rem; color:var(--color-text-muted);">Auto-refreshing queries from BigQuery every 1.5s.</span>
+            <label class="switch" style="transform: scale(0.85);">
+              <input type="checkbox" id="adk-poll-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Cumulative Spend Chart -->
+        <div class="glass-card chart-card" style="margin-bottom: 1.5rem;">
+          <div class="panel-header">
+            <h3 class="panel-title" style="color:var(--color-primary);">Cumulative Spend Trajectory ($)</h3>
+            <p class="panel-subtitle">Visualizing token cost compounding turn-by-turn</p>
+          </div>
+          <div class="canvas-container">
+            <canvas id="costLineChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Multi-Model Cost Comparison Bar Chart -->
+        <div class="glass-card chart-card">
+          <div class="panel-header">
+            <h3 class="panel-title" style="color:var(--color-success);">Multi-Model Cost Comparison ($)</h3>
+            <p class="panel-subtitle">Total session token footprint simulated across alternate models</p>
+          </div>
+          <div class="canvas-container">
+            <canvas id="whatIfBarChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+      
+    </main>
+
+  </div>
+  
+  <!-- Model Management Modal -->
+  <div id="model-modal-overlay" class="modal-overlay hidden" style="display:none;">
+    <div class="modal-card glass-card">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">Model Registry Management</h2>
+          <p class="modal-subtitle">Add, edit, or delete AI model parameter configurations & rate cards (JSON)</p>
+        </div>
+        <button id="btn-close-modal" class="btn-close-modal">&times;</button>
+      </div>
+
+      <!-- Modal Tab Controls -->
+      <div class="modal-tabs" style="display:flex; gap:0.5rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.75rem; margin-bottom:1.25rem;">
+        <button id="tab-btn-visual" class="modal-tab-btn active" style="padding:0.4rem 1rem; font-size:0.85rem; font-weight:600; border-radius:8px; border:none; background:var(--color-primary); color:#fff; cursor:pointer;">
+          📊 Visual Table & Form
+        </button>
+        <button id="tab-btn-raw" class="modal-tab-btn" style="padding:0.4rem 1rem; font-size:0.85rem; font-weight:600; border-radius:8px; border:none; background:rgba(255,255,255,0.08); color:var(--color-text-muted); cursor:pointer;">
+          📝 Raw JSON Code Editor
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Tab 1: Visual Form & Table -->
+        <div id="modal-tab-visual">
+          <div class="table-container" style="max-height: 220px; overflow-y: auto; margin-bottom: 1.25rem;">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Model ID</th>
+                  <th>Display Name</th>
+                  <th>Provider</th>
+                  <th>Input $/1M</th>
+                  <th>Cache $/1M</th>
+                  <th>Output $/1M</th>
+                  <th style="text-align:center;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="modal-models-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="modal-form-section">
+            <h3 id="modal-form-title" style="font-size:1.05rem; font-weight:600; color:var(--color-primary); margin-bottom:0.75rem;">Add New Model Configuration</h3>
+            <form id="model-editor-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="form-model-id">Model ID / Path:</label>
+                  <input type="text" id="form-model-id" class="input-premium" placeholder="e.g. publishers/google/models/gemini-3.7-flash" required>
+                </div>
+                <div class="form-group">
+                  <label for="form-model-name">Display Name:</label>
+                  <input type="text" id="form-model-name" class="input-premium" placeholder="e.g. Gemini 3.7 Flash" required>
+                </div>
+                <div class="form-group">
+                  <label for="form-model-provider">Provider:</label>
+                  <select id="form-model-provider" class="select-premium">
+                    <option value="google">Google</option>
+                    <option value="anthropic">Anthropic</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="form-price-input">Input Cost ($/1M):</label>
+                  <input type="number" step="0.01" id="form-price-input" class="input-premium" placeholder="1.50" required>
+                </div>
+                <div class="form-group">
+                  <label for="form-price-cached">Cached Cost ($/1M):</label>
+                  <input type="number" step="0.01" id="form-price-cached" class="input-premium" placeholder="0.15" required>
+                </div>
+                <div class="form-group">
+                  <label for="form-price-output">Output Cost ($/1M):</label>
+                  <input type="number" step="0.01" id="form-price-output" class="input-premium" placeholder="9.00" required>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="form-thinking-budget">Default Thinking Budget / Effort:</label>
+                  <select id="form-thinking-budget" class="select-premium">
+                    <option value="0">0 / off</option>
+                    <option value="1024">1024 / low</option>
+                    <option value="2048">2048 / medium</option>
+                    <option value="4096">4096 / high</option>
+                    <option value="-1">-1 / dynamic</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="form-max-tokens">Default Max Output Tokens:</label>
+                  <select id="form-max-tokens" class="select-premium">
+                    <option value="1024">1024 Tokens</option>
+                    <option value="2048">2048 Tokens</option>
+                    <option value="4096">4096 Tokens</option>
+                    <option value="8192" selected>8192 Tokens</option>
+                    <option value="16384">16384 Tokens</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-actions" style="margin-top:1rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+                <button type="button" id="btn-cancel-edit" class="btn" style="background:rgba(255,255,255,0.08); color:var(--color-text-muted);">Cancel / Clear</button>
+                <button type="submit" class="btn btn-premium-primary" style="background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; font-weight:600;">Save Model Configuration</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Tab 2: Raw JSON Code Editor -->
+        <div id="modal-tab-raw" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <span style="font-size:0.85rem; font-weight:600; color:var(--color-text-muted);">Edit raw <code style="color:var(--color-primary);">models_config.json</code>:</span>
+            <div style="display:flex; gap:0.5rem;">
+              <button type="button" id="btn-format-raw-json" class="btn" style="padding:0.3rem 0.6rem; font-size:0.75rem; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); border-radius:6px; cursor:pointer;">
+                🧹 Format JSON
+              </button>
+              <button type="button" id="btn-copy-raw-json" class="btn" style="padding:0.3rem 0.6rem; font-size:0.75rem; background:rgba(16,185,129,0.15); color:#a7f3d0; border:1px solid rgba(16,185,129,0.3); border-radius:6px; cursor:pointer;">
+                📋 Copy
+              </button>
+            </div>
+          </div>
+
+          <textarea id="raw-json-editor-textarea" style="width:100%; height:280px; font-family:monospace; font-size:0.8rem; color:#a7f3d0; background:#070d19; border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:1rem; outline:none; resize:vertical; box-sizing:border-box; line-height:1.4;"></textarea>
+
+          <div id="raw-json-status-msg" style="margin-top:0.5rem; font-size:0.8rem; font-weight:600;"></div>
+
+          <div style="margin-top:1rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+            <button type="button" id="btn-save-raw-json" class="btn btn-premium-primary" style="background:linear-gradient(135deg, #3b82f6, #6366f1); color:#fff; border:none; font-weight:600; padding:0.5rem 1.25rem;">
+              💾 Save Raw JSON Config
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=6"></script>
+</body>
+</html>
