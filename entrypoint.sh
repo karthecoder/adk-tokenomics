@@ -3,12 +3,19 @@ set -e
 
 echo "=== Booting Token Control Tower Container ==="
 
-# 1. Start ADK Web Engine in subshell on loopback 127.0.0.1:8082
-echo ">>> Starting ADK Agent Engine on 127.0.0.1:8082..."
-(cd /app/agent-nexus && adk web . --host 127.0.0.1 --port 8082 --allow_origins '*') &
+# 1. Start ADK Web Engine in subshell on port 8082
+echo ">>> Starting ADK Agent Engine on port 8082..."
+(cd /app/agent-nexus && adk web . --host 0.0.0.0 --port 8082 --allow_origins '*') &
 
-# 2. Give ADK engine 2 seconds to initialize
-sleep 2
+# 2. Wait up to 30 seconds for ADK Web engine on 8082 to be ready
+echo ">>> Waiting for ADK Web Engine to start on port 8082..."
+for i in $(seq 1 30); do
+  if curl -s http://127.0.0.1:8082/ > /dev/null 2>&1; then
+    echo ">>> ADK Web Engine is READY on port 8082!"
+    break
+  fi
+  sleep 1
+done
 
 # 3. Start Control Tower Dashboard Server from root /app directory
 cd /app
