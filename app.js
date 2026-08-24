@@ -50,18 +50,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Focus Mode (Collapsible Header & Controls)
   const btnToggleFocusMode = document.getElementById('btn-toggle-focus-mode');
+  const btnTabToggleFocus = document.getElementById('btn-tab-toggle-focus');
   const btnExitFocus = document.getElementById('btn-exit-focus');
   const dashboardWrapper = document.getElementById('dashboard-wrapper');
 
-  if (btnToggleFocusMode && dashboardWrapper) {
-    btnToggleFocusMode.addEventListener('click', () => {
+  function setFocusMode(active) {
+    if (!dashboardWrapper) return;
+    if (active) {
       dashboardWrapper.classList.add('focus-mode-active');
-    });
+      if (btnTabToggleFocus) btnTabToggleFocus.innerHTML = '🔽 Expand Top';
+    } else {
+      dashboardWrapper.classList.remove('focus-mode-active');
+      if (btnTabToggleFocus) btnTabToggleFocus.innerHTML = '🔼 Collapse Top';
+    }
   }
 
-  if (btnExitFocus && dashboardWrapper) {
-    btnExitFocus.addEventListener('click', () => {
-      dashboardWrapper.classList.remove('focus-mode-active');
+  if (btnToggleFocusMode) {
+    btnToggleFocusMode.addEventListener('click', () => setFocusMode(true));
+  }
+
+  if (btnExitFocus) {
+    btnExitFocus.addEventListener('click', () => setFocusMode(false));
+  }
+
+  if (btnTabToggleFocus) {
+    btnTabToggleFocus.addEventListener('click', () => {
+      const isFocused = dashboardWrapper.classList.contains('focus-mode-active');
+      setFocusMode(!isFocused);
     });
   }
   

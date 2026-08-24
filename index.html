@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gemini Agent Token Control Tower</title>
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="premium-theme">
@@ -179,6 +179,9 @@
             <p class="panel-subtitle">Chat in real-time & observe event traces live</p>
           </div>
           <div style="display:flex; align-items:center; gap:0.5rem;">
+            <button type="button" id="btn-tab-toggle-focus" class="btn" style="padding:0.3rem 0.75rem; font-size:0.8rem; background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3); border-radius:6px; cursor:pointer; font-weight:600;">
+              🔼 Collapse Top
+            </button>
             <button type="button" id="btn-reload-iframe" class="btn" style="padding:0.3rem 0.75rem; font-size:0.8rem; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); border-radius:6px; cursor:pointer;">
               🔄 Reload Playground
             </button>
@@ -407,6 +410,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
