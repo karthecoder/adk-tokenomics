@@ -5,9 +5,11 @@ Handles static serving and routes API POST calls to run_benchmark.py.
 """
 
 import datetime
+import gzip
 import http.server
 import json
 import os
+import re
 import subprocess
 import sys
 from urllib.parse import urlparse, parse_qs
@@ -347,16 +349,22 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
         target_url = f"http://127.0.0.1:8082{target_path}"
         try:
             req_headers = {k: v for k, v in self.headers.items() if k.lower() not in ['host', 'accept-encoding']}
+            req_headers['Accept-Encoding'] = 'identity'
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length) if content_length > 0 else None
 
             req = urllib.request.Request(target_url, data=body, headers=req_headers, method=self.command)
             with urllib.request.urlopen(req, timeout=35) as resp:
                 self.send_response(resp.status)
-                headers_dict = dict(resp.headers)
-                content_type = headers_dict.get('Content-Type', '')
+                content_type = resp.headers.get('Content-Type', '')
+                content_encoding = resp.headers.get('Content-Encoding', '')
                 
                 resp_body = resp.read()
+                if content_encoding == 'gzip':
+                    try:
+                        resp_body = gzip.decompress(resp_body)
+                    except Exception:
+                        pass
                 
                 # Replace base href to /adk/ if HTML response so Angular SPA routes & chunks resolve cleanly
                 if 'text/html' in content_type:
@@ -364,7 +372,9 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                         html_str = resp_body.decode('utf-8', errors='ignore')
                         if '<base href="./">' in html_str:
                             html_str = html_str.replace('<base href="./">', '<base href="/adk/">', 1)
-                        elif '<head>' in html_str and '<base' not in html_str:
+                        elif '<base' in html_str:
+                            html_str = re.sub(r'<base\s+href="[^"]*"', '<base href="/adk/"', html_str, count=1)
+                        elif '<head>' in html_str:
                             html_str = html_str.replace('<head>', '<head><base href="/adk/">', 1)
                         resp_body = html_str.encode('utf-8')
                     except Exception as ex:
