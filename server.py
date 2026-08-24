@@ -11,6 +11,8 @@ import os
 import subprocess
 import sys
 from urllib.parse import urlparse, parse_qs
+import urllib.request
+import urllib.error
 from dotenv import load_dotenv
 
 # Ensure working directory is always the root project directory containing index.html
@@ -323,11 +325,65 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"[ERROR] Failed to truncate BQ table: {e}", flush=True)
 
+    def is_adk_route(self, path):
+        adk_prefixes = [
+            '/adk', '/apps', '/api/apps', '/api/run', '/api/events',
+            '/static', '/assets', '/_next', '/favicon', '/node_modules'
+        ]
+        return any(path == p or path.startswith(p + '/') or path.startswith(p + '?') for p in adk_prefixes)
+
+    def proxy_to_adk(self):
+        target_path = self.path
+        if target_path.startswith('/adk'):
+            target_path = target_path[4:]
+            if not target_path or not target_path.startswith('/'):
+                target_path = '/' + target_path
+
+        target_url = f"http://127.0.0.1:8082{target_path}"
+        try:
+            req_headers = {k: v for k, v in self.headers.items() if k.lower() not in ['host', 'accept-encoding']}
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else None
+
+            req = urllib.request.Request(target_url, data=body, headers=req_headers, method=self.command)
+            with urllib.request.urlopen(req, timeout=35) as resp:
+                self.send_response(resp.status)
+                for k, v in resp.headers.items():
+                    if k.lower() not in ['transfer-encoding', 'content-length', 'content-encoding']:
+                        self.send_header(k, v)
+                resp_body = resp.read()
+                self.send_header('Content-Length', str(len(resp_body)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(resp_body)
+        except urllib.error.HTTPError as e:
+            self.send_response(e.code)
+            for k, v in e.headers.items():
+                if k.lower() not in ['transfer-encoding', 'content-length', 'content-encoding']:
+                    self.send_header(k, v)
+            err_body = e.read()
+            self.send_header('Content-Length', str(len(err_body)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(err_body)
+        except Exception as e:
+            print(f"[PROXY ERROR] {target_url}: {e}", flush=True)
+            self.send_response(502)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Bad Gateway", "details": str(e)}).encode('utf-8'))
+
     def do_OPTIONS(self):
+        parsed_url = urlparse(self.path)
+        path = parsed_url.path
+        if self.is_adk_route(path):
+            self.proxy_to_adk()
+            return
         # Handle CORS preflight
         self.send_response(200, "ok")
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE')
         self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
         self.end_headers()
 
@@ -336,6 +392,10 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
         path = parsed_url.path
         query_params = parse_qs(parsed_url.query)
         
+        if self.is_adk_route(path):
+            self.proxy_to_adk()
+            return
+            
         if path == '/agent-nexus/live_metrics.json' or path == '/live_metrics.json':
             session_id = query_params.get('session_id', ['global'])[0]
             print(f">>> Fetching live metrics from BigQuery (session_id={session_id})...")
@@ -458,6 +518,12 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
         print(f"[ENV] Updated {key}={value} in {env_path}", flush=True)
 
     def do_POST(self):
+        parsed_url = urlparse(self.path)
+        path = parsed_url.path
+        if self.is_adk_route(path):
+            self.proxy_to_adk()
+            return
+
         if self.path == '/api/clear-metrics':
             print(">>> Clearing BigQuery and local metrics logs...")
             try:
