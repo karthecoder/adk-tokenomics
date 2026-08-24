@@ -8,6 +8,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const adkLiveTableBody = document.getElementById('adk-live-table-body');
   const adkSessionSelect = document.getElementById('adk-session-select');
   const adkAppSelect = document.getElementById('adk-app-select');
+  const btnReloadIframe = document.getElementById('btn-reload-iframe');
+  const adkChatFrame = document.getElementById('adk-chat-frame');
+  
+  if (btnReloadIframe && adkChatFrame) {
+    btnReloadIframe.addEventListener('click', () => {
+      adkChatFrame.src = 'http://localhost:8082';
+    });
+  }
   
   let pollIntervalId = null;
   let sessionIntervalId = null;

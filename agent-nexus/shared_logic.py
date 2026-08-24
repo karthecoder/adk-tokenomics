@@ -84,7 +84,7 @@ from prompts import CATALOG_TEXT
 
 # Tools definitions
 def google_search(query: str) -> str:
-    """Performs a Google Search to get real-time up-to-date facts, current events, weather, or info on places.
+    """Performs a Google Search to get real-time up-to-date facts, news, current events, weather, or info on places.
     
     Args:
         query: The search query string.
@@ -99,6 +99,22 @@ def google_search(query: str) -> str:
         )
     )
     return response.text
+
+def google_news_search(query: str) -> str:
+    """Performs a Google Search for news, current events, and live updates.
+    
+    Args:
+        query: The search query string.
+    """
+    return google_search(query)
+
+def web_search(query: str) -> str:
+    """Performs a web search to fetch online information.
+    
+    Args:
+        query: The search query string.
+    """
+    return google_search(query)
 
 def get_weather(query: str) -> str:
     """Simulates a web search. Use it get information on weather."""
@@ -308,6 +324,8 @@ def prune_thoughts_from_history(callback_context, **kwargs):
                         ]
                         if clean_parts:
                             event.content.parts = clean_parts
+                        else:
+                            event.content.parts = [types.Part.from_text(text="[Thinking completed]")]
     except Exception as e:
         print(f"[DEBUG] Pruning thoughts failed: {e}", flush=True)
 

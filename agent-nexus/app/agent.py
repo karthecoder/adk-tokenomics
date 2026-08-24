@@ -22,8 +22,13 @@ from google.adk.models.llm_response import LlmResponse
 
 def get_agent_config():
     budget = shared_logic.get_thinking_budget()
+    if isinstance(budget, str):
+        budget_map = {"off": 0, "low": 1024, "medium": 2048, "high": 4096}
+        numeric_budget = budget_map.get(budget.lower(), 0)
+    else:
+        numeric_budget = budget if budget is not None else 0
     return types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_budget=budget)
+        thinking_config=types.ThinkingConfig(thinking_budget=numeric_budget)
     )
 
 def _patched_build_anthropic_thinking_param(config):
@@ -36,6 +41,32 @@ def _patched_build_anthropic_thinking_param(config):
     return anthropic_types.ThinkingConfigAdaptiveParam(type="adaptive")
 
 anthropic_llm_module._build_anthropic_thinking_param = _patched_build_anthropic_thinking_param
+
+import google.adk.flows.llm_flows.functions as adk_functions
+
+_orig_get_tool = adk_functions._get_tool
+
+def _fuzzy_get_tool(function_call, tools_dict):
+    name = getattr(function_call, "name", "")
+    if name in tools_dict:
+        return _orig_get_tool(function_call, tools_dict)
+    
+    # Strip namespace prefixes like 'default me:default_api:' or 'default_api:'
+    clean_name = name.split(":")[-1].strip()
+    if clean_name in tools_dict:
+        function_call.name = clean_name
+        return _orig_get_tool(function_call, tools_dict)
+        
+    # If hallucinated search or news function, route to 'google_search' or available search tool
+    if any(k in clean_name.lower() for k in ("search", "news", "web", "fetch", "query")):
+        for candidate in ("google_search", "google_news_search", "web_search"):
+            if candidate in tools_dict:
+                function_call.name = candidate
+                return _orig_get_tool(function_call, tools_dict)
+                
+    return _orig_get_tool(function_call, tools_dict)
+
+adk_functions._get_tool = _fuzzy_get_tool
 
 def _patched_message_to_generate_content_response(message):
     parts = [anthropic_llm_module.content_block_to_part(cb) for cb in message.content]
@@ -300,7 +331,7 @@ naive_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.NAIVE_INSTRUCTION,
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search],
+    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
 naive_app = App(root_agent=naive_agent, name="naive_app")
@@ -311,7 +342,7 @@ caching_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.CACHING_INSTRUCTION,
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search],
+    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
 caching_app = App(
@@ -326,7 +357,7 @@ compaction_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.COMPACTION_INSTRUCTION,
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search],
+    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
 compaction_app = App(
@@ -341,7 +372,7 @@ skills_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.SKILLS_INSTRUCTION_TEMPLATE.format(skills_catalog=skills_catalog),
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.activate_skill, shared_logic.google_search],
+    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.activate_skill, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
 skills_app = App(root_agent=skills_agent, name="skills_app")
