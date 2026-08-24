@@ -16,6 +16,37 @@ document.addEventListener('DOMContentLoaded', () => {
       adkChatFrame.src = 'http://localhost:8082';
     });
   }
+
+  // Main Tab Navigation Switcher
+  const tabBtnPlayground = document.getElementById('tab-btn-playground');
+  const tabBtnTelemetry = document.getElementById('tab-btn-telemetry');
+  const tabPanePlayground = document.getElementById('tab-pane-playground');
+  const tabPaneTelemetry = document.getElementById('tab-pane-telemetry');
+
+  if (tabBtnPlayground && tabBtnTelemetry && tabPanePlayground && tabPaneTelemetry) {
+    tabBtnPlayground.addEventListener('click', () => {
+      tabBtnPlayground.classList.add('active');
+      tabBtnTelemetry.classList.remove('active');
+      tabPanePlayground.classList.remove('hidden');
+      tabPanePlayground.style.display = 'block';
+      tabPaneTelemetry.classList.add('hidden');
+      tabPaneTelemetry.style.display = 'none';
+    });
+
+    tabBtnTelemetry.addEventListener('click', () => {
+      tabBtnTelemetry.classList.add('active');
+      tabBtnPlayground.classList.remove('active');
+      tabPaneTelemetry.classList.remove('hidden');
+      tabPaneTelemetry.style.display = 'block';
+      tabPanePlayground.classList.add('hidden');
+      tabPanePlayground.style.display = 'none';
+
+      setTimeout(() => {
+        if (costLineChart) costLineChart.resize();
+        if (whatIfBarChart) whatIfBarChart.resize();
+      }, 50);
+    });
+  }
   
   let pollIntervalId = null;
   let sessionIntervalId = null;

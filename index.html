@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gemini Agent Token Control Tower</title>
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="premium-theme">
@@ -42,118 +42,120 @@
       </div>
     </header>
 
-    <!-- Organized Control Toolbar -->
+    <!-- Organized Compact Control Toolbar -->
     <section class="controls-toolbar glass-card">
       <div class="control-row">
-        <div class="control-group">
-          <span class="control-group-label">📊 Telemetry Scope</span>
-          <div class="control-select-wrapper">
-            <label class="control-label-inline" for="adk-session-select">Session:</label>
-            <select id="adk-session-select" class="select-premium">
-              <option value="global">All Sessions (Global Aggregate)</option>
-            </select>
-          </div>
-
-          <div class="control-select-wrapper">
-            <label class="control-label-inline" for="adk-app-select">App Filter:</label>
-            <select id="adk-app-select" class="select-premium">
-              <option value="all">All Applications</option>
-              <option value="naive_app">1. Naive Monolithic</option>
-              <option value="caching_app">2. Context Caching</option>
-              <option value="compaction_app">3. History Compaction</option>
-              <option value="skills_app">4. Modular Skills</option>
-            </select>
-          </div>
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-session-select">Session:</label>
+          <select id="adk-session-select" class="select-premium">
+            <option value="global">All Sessions (Global Aggregate)</option>
+          </select>
         </div>
-      </div>
 
-      <div class="control-row">
-        <div class="control-group">
-          <span class="control-group-label">🤖 Active Model & Parameters</span>
-          <div class="control-select-wrapper">
-            <label class="control-label-inline" for="adk-model-select">Active Model:</label>
-            <select id="adk-model-select" class="select-premium select-highlight-blue">
-              <option value="publishers/google/models/gemini-3.5-flash">Gemini 3.5 Flash</option>
-              <option value="publishers/google/models/gemini-3.6-flash">Gemini 3.6 Flash</option>
-              <option value="publishers/google/models/gemini-3.7-flash">Gemini 3.7 Flash</option>
-              <option value="claude-sonnet-5">Claude Sonnet 5</option>
-            </select>
-          </div>
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-app-select">App Filter:</label>
+          <select id="adk-app-select" class="select-premium">
+            <option value="all">All Applications</option>
+            <option value="naive_app">1. Naive Monolithic</option>
+            <option value="caching_app">2. Context Caching</option>
+            <option value="compaction_app">3. History Compaction</option>
+            <option value="skills_app">4. Modular Skills</option>
+          </select>
+        </div>
 
-          <div class="control-select-wrapper">
-            <label class="control-label-inline" for="adk-thinking-select">Thinking Budget:</label>
-            <select id="adk-thinking-select" class="select-premium select-highlight-purple">
-              <option value="0">0 (Off)</option>
-              <option value="1024">1024 (Low)</option>
-              <option value="4096">4096 (High)</option>
-              <option value="-1">-1 (Dynamic)</option>
-            </select>
-          </div>
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-model-select">Active Model:</label>
+          <select id="adk-model-select" class="select-premium select-highlight-blue">
+            <option value="publishers/google/models/gemini-3.5-flash">Gemini 3.5 Flash</option>
+            <option value="publishers/google/models/gemini-3.6-flash">Gemini 3.6 Flash</option>
+            <option value="publishers/google/models/gemini-3.7-flash">Gemini 3.7 Flash</option>
+            <option value="claude-sonnet-5">Claude Sonnet 5</option>
+          </select>
+        </div>
 
-          <div class="control-select-wrapper">
-            <label class="control-label-inline" for="adk-maxtokens-select">Max Tokens:</label>
-            <select id="adk-maxtokens-select" class="select-premium select-highlight-green">
-              <option value="1024">1024 Tokens</option>
-              <option value="2048">2048 Tokens</option>
-              <option value="4096">4096 Tokens</option>
-              <option value="8192" selected>8192 Tokens (Default)</option>
-              <option value="16384">16384 Tokens</option>
-            </select>
-          </div>
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-thinking-select">Thinking Budget:</label>
+          <select id="adk-thinking-select" class="select-premium select-highlight-purple">
+            <option value="0">0 (Off)</option>
+            <option value="1024">1024 (Low)</option>
+            <option value="4096">4096 (High)</option>
+            <option value="-1">-1 (Dynamic)</option>
+          </select>
+        </div>
+
+        <div class="control-select-wrapper">
+          <label class="control-label-inline" for="adk-maxtokens-select">Max Tokens:</label>
+          <select id="adk-maxtokens-select" class="select-premium select-highlight-green">
+            <option value="1024">1024 Tokens</option>
+            <option value="2048">2048 Tokens</option>
+            <option value="4096">4096 Tokens</option>
+            <option value="8192" selected>8192 Tokens (Default)</option>
+            <option value="16384">16384 Tokens</option>
+          </select>
         </div>
       </div>
     </section>
 
-    <!-- Hero KPI Cards Row -->
-    <section class="kpi-row">
-      <!-- Card 1: Total Cost -->
-      <div class="kpi-card glass-card">
-        <div class="kpi-icon-wrapper kpi-primary">💵</div>
-        <div class="kpi-content">
-          <span class="kpi-label">Accumulated Session Spend</span>
-          <h2 class="kpi-value" id="kpi-total-cost">$0.00000</h2>
-          <span class="kpi-trend" id="kpi-cost-desc">Active session footprint</span>
-        </div>
-      </div>
+    <!-- Primary Tab Navigation Bar -->
+    <nav class="tab-navigation glass-card">
+      <button type="button" id="tab-btn-playground" class="main-tab-btn active">
+        💬 Agent Playground
+      </button>
+      <button type="button" id="tab-btn-telemetry" class="main-tab-btn">
+        📊 Telemetry & Analytics
+      </button>
+    </nav>
 
-      <!-- Card 2: Cache Ratio -->
-      <div class="kpi-card glass-card">
-        <div class="kpi-icon-wrapper kpi-success">💾</div>
-        <div class="kpi-content">
-          <span class="kpi-label">Prompt Cache Read Ratio</span>
-          <h2 class="kpi-value" id="kpi-cache-ratio">0.0%</h2>
-          <div class="kpi-progress-bar-container">
-            <div class="kpi-progress-bar" id="kpi-cache-bar" style="width: 0%;"></div>
-          </div>
-          <span class="kpi-trend" id="kpi-cache-desc">Cached tokens / Total input</span>
-        </div>
-      </div>
-
-      <!-- Card 3: Max Savings -->
-      <div class="kpi-card glass-card">
-        <div class="kpi-icon-wrapper kpi-warning">⚡</div>
-        <div class="kpi-content">
-          <span class="kpi-label">Peak Cost Reduction</span>
-          <h2 class="kpi-value savings-text" id="kpi-max-savings">0%</h2>
-          <span class="kpi-trend" id="kpi-savings-desc">Against naive monolithic baseline</span>
-        </div>
-      </div>
-
-      <!-- Card 4: Reasoning & Output Tokens -->
-      <div class="kpi-card glass-card">
-        <div class="kpi-icon-wrapper" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">🧠</div>
-        <div class="kpi-content">
-          <span class="kpi-label">Reasoning & Output Tokens</span>
-          <h2 class="kpi-value" id="kpi-output-tokens" style="color: #c084fc;">0</h2>
-          <span class="kpi-trend" id="kpi-output-desc">Visible: 0 | Thoughts: 0 (0%)</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Main Split-Screen Workspace -->
-    <main class="split-workspace-grid">
+    <!-- TAB PANE 1: Interactive Agent Playground -->
+    <div id="tab-pane-playground" class="main-tab-pane active">
       
-      <!-- Left Column (60%): Embedded ADK Web Chat UI -->
+      <!-- Top Hero KPI Cards Row -->
+      <section class="kpi-row" style="margin-bottom: 1.5rem;">
+        <!-- Card 1: Total Cost -->
+        <div class="kpi-card glass-card">
+          <div class="kpi-icon-wrapper kpi-primary">💵</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Accumulated Session Spend</span>
+            <h2 class="kpi-value" id="kpi-total-cost">$0.00000</h2>
+            <span class="kpi-trend" id="kpi-cost-desc">Active session footprint</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Cache Ratio -->
+        <div class="kpi-card glass-card">
+          <div class="kpi-icon-wrapper kpi-success">💾</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Prompt Cache Read Ratio</span>
+            <h2 class="kpi-value" id="kpi-cache-ratio">0.0%</h2>
+            <div class="kpi-progress-bar-container">
+              <div class="kpi-progress-bar" id="kpi-cache-bar" style="width: 0%;"></div>
+            </div>
+            <span class="kpi-trend" id="kpi-cache-desc">Cached tokens / Total input</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Max Savings -->
+        <div class="kpi-card glass-card">
+          <div class="kpi-icon-wrapper kpi-warning">⚡</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Peak Cost Reduction</span>
+            <h2 class="kpi-value savings-text" id="kpi-max-savings">0%</h2>
+            <span class="kpi-trend" id="kpi-savings-desc">Against naive monolithic baseline</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Reasoning & Output Tokens -->
+        <div class="kpi-card glass-card">
+          <div class="kpi-icon-wrapper" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">🧠</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Reasoning & Output Tokens</span>
+            <h2 class="kpi-value" id="kpi-output-tokens" style="color: #c084fc;">0</h2>
+            <span class="kpi-trend" id="kpi-output-desc">Visible: 0 | Thoughts: 0 (0%)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Full-Width 780px Embedded ADK Web Chat UI -->
       <div class="glass-card chat-panel">
         <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
           <div>
@@ -167,16 +169,19 @@
             <span class="badge badge-success">Port 8082 🟢</span>
           </div>
         </div>
-        <div class="chat-frame-wrapper" style="border-radius: 12px; overflow: hidden; height: 650px;">
+        <div class="chat-frame-wrapper" style="border-radius: 12px; overflow: hidden; height: 780px;">
           <iframe id="adk-chat-frame" src="http://localhost:8082" style="width: 100%; height: 100%; border: none; background: #0f172a;"></iframe>
         </div>
       </div>
+    </div>
 
-      <!-- Right Column (40%): Telemetry Ledger & Visual Charts -->
-      <div class="telemetry-panel">
+    <!-- TAB PANE 2: Telemetry Ledger & Visual Analytics -->
+    <div id="tab-pane-telemetry" class="main-tab-pane hidden" style="display:none;">
+      
+      <div class="telemetry-tab-grid">
         
-        <!-- Live Ledger Table -->
-        <div class="glass-card table-panel" style="margin-bottom: 1.5rem;">
+        <!-- Left Column (50%): Real-Time Playground Cost Ledger -->
+        <div class="glass-card table-panel">
           <div class="panel-header">
             <h3 class="panel-title">Real-Time Playground Cost Ledger</h3>
             <p class="panel-subtitle">Performance breakdown of the 4 optimization levels</p>
@@ -215,31 +220,36 @@
           </div>
         </div>
 
-        <!-- Cumulative Spend Chart -->
-        <div class="glass-card chart-card" style="margin-bottom: 1.5rem;">
-          <div class="panel-header">
-            <h3 class="panel-title" style="color:var(--color-primary);">Cumulative Spend Trajectory ($)</h3>
-            <p class="panel-subtitle">Visualizing token cost compounding turn-by-turn</p>
+        <!-- Right Column (50%): Visual Charts -->
+        <div class="charts-panel" style="display:flex; flex-direction:column; gap:1.5rem;">
+          
+          <!-- Cumulative Spend Chart -->
+          <div class="glass-card chart-card">
+            <div class="panel-header">
+              <h3 class="panel-title" style="color:var(--color-primary);">Cumulative Spend Trajectory ($)</h3>
+              <p class="panel-subtitle">Visualizing token cost compounding turn-by-turn</p>
+            </div>
+            <div class="canvas-container">
+              <canvas id="costLineChart"></canvas>
+            </div>
           </div>
-          <div class="canvas-container">
-            <canvas id="costLineChart"></canvas>
-          </div>
-        </div>
 
-        <!-- Multi-Model Cost Comparison Bar Chart -->
-        <div class="glass-card chart-card">
-          <div class="panel-header">
-            <h3 class="panel-title" style="color:var(--color-success);">Multi-Model Cost Comparison ($)</h3>
-            <p class="panel-subtitle">Total session token footprint simulated across alternate models</p>
+          <!-- Multi-Model Cost Comparison Bar Chart -->
+          <div class="glass-card chart-card">
+            <div class="panel-header">
+              <h3 class="panel-title" style="color:var(--color-success);">Multi-Model Cost Comparison ($)</h3>
+              <p class="panel-subtitle">Total session token footprint simulated across alternate models</p>
+            </div>
+            <div class="canvas-container">
+              <canvas id="whatIfBarChart"></canvas>
+            </div>
           </div>
-          <div class="canvas-container">
-            <canvas id="whatIfBarChart"></canvas>
-          </div>
+
         </div>
 
       </div>
-      
-    </main>
+
+    </div>
 
   </div>
   
@@ -381,6 +391,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
