@@ -4,6 +4,7 @@ Custom Python HTTP server for Agent Nexus dashboard.
 Handles static serving and routes API POST calls to run_benchmark.py.
 """
 
+import datetime
 import http.server
 import json
 import os
@@ -18,6 +19,23 @@ load_dotenv()
 # Import shared logic from agent-nexus
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'agent-nexus'))
 import shared_logic
+
+def get_clear_cutoff():
+    cutoff_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'agent-nexus', '.clear_cutoff')
+    if os.path.exists(cutoff_path):
+        try:
+            with open(cutoff_path, 'r') as f:
+                content = f.read().strip()
+                if content:
+                    return content
+        except Exception:
+            pass
+    return None
+
+def set_clear_cutoff(iso_timestamp):
+    cutoff_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'agent-nexus', '.clear_cutoff')
+    with open(cutoff_path, 'w') as f:
+        f.write(iso_timestamp)
 
 # Simulation Pricing Models Map
 PRICING_MODELS = {
@@ -76,11 +94,17 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             except NotFound:
                 return self.fetch_local_fallback()
                 
-            where_clause = ""
+            cutoff = get_clear_cutoff()
+            where_conds = []
             params = []
             if session_id and session_id != "global":
-                where_clause = "WHERE session_id = @session_id"
-                params = [bigquery.ScalarQueryParameter("session_id", "STRING", session_id)]
+                where_conds.append("session_id = @session_id")
+                params.append(bigquery.ScalarQueryParameter("session_id", "STRING", session_id))
+            if cutoff:
+                where_conds.append("timestamp > @clear_cutoff")
+                params.append(bigquery.ScalarQueryParameter("clear_cutoff", "TIMESTAMP", cutoff))
+                
+            where_clause = "WHERE " + " AND ".join(where_conds) if where_conds else ""
                 
             # Query Aggregates
             query_agg = f"""
@@ -238,13 +262,19 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             except NotFound:
                 return []
                 
+            cutoff = get_clear_cutoff()
+            where_clause = f"WHERE timestamp > @clear_cutoff" if cutoff else ""
+            params = [bigquery.ScalarQueryParameter("clear_cutoff", "TIMESTAMP", cutoff)] if cutoff else []
+                
             query = f"""
                 SELECT session_id, MIN(timestamp) as start_time
                 FROM `{full_table_id}`
+                {where_clause}
                 GROUP BY session_id
                 ORDER BY start_time DESC
             """
-            query_job = client.query(query)
+            job_config = bigquery.QueryJobConfig(query_parameters=params) if params else None
+            query_job = client.query(query, job_config=job_config)
             results = query_job.result()
             
             sessions = []
@@ -427,6 +457,9 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
         if self.path == '/api/clear-metrics':
             print(">>> Clearing BigQuery and local metrics logs...")
             try:
+                now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                set_clear_cutoff(now_iso)
+                
                 # Clear BQ Table
                 self.clear_bq_table()
                 

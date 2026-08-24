@@ -22,3 +22,5 @@ agent-nexus/artifacts/
 # Temporary logs & test artifacts
 *.log
 scratch/
+.clear_cutoff
+agent-nexus/.clear_cutoff
