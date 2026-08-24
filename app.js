@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (btnReloadIframe && adkChatFrame) {
     btnReloadIframe.addEventListener('click', () => {
-      adkChatFrame.src = '/adk/';
+      adkChatFrame.src = '/dev-ui/';
     });
   }
 
