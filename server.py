@@ -13,11 +13,15 @@ import sys
 from urllib.parse import urlparse, parse_qs
 from dotenv import load_dotenv
 
+# Ensure working directory is always the root project directory containing index.html
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(ROOT_DIR)
+
 # Load central .env file
 load_dotenv()
 
 # Import shared logic from agent-nexus
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'agent-nexus'))
+sys.path.append(os.path.join(ROOT_DIR, 'agent-nexus'))
 import shared_logic
 
 def get_clear_cutoff():
