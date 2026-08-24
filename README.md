@@ -38,6 +38,15 @@ This directory houses the python backend containing the ADK agents and optimizat
 *   **[agent-nexus/skills_app/agent.py](file:///Users/karticn/tokenomics/agent-nexus/skills_app/agent.py)**: Configures the **Modular Skills** agent (Scenario 4) utilizing dynamic discovery and on-demand activation.
 *   **[agent-nexus/skills/](file:///Users/karticn/tokenomics/agent-nexus/skills/)**: Skill registry containing `SKILL.md` files (frontmatter + instructions) for each city based on the `agentskills.io` standard.
 
+## 📋 Prerequisites
+
+Before running the sandbox, ensure you have the following prerequisites installed and configured:
+
+1. **Python 3.10+** (Tested on Python 3.13).
+2. **Google Cloud SDK (`gcloud`)**: Installed and authenticated for Vertex AI and BigQuery access (`gcloud auth application-default login`).
+3. **Google Agent Development Kit (ADK)**: `pip install google-adk`
+4. **Environment File (`.env`)**: Required configuration file created from template (`cp .env.example .env`).
+
 ---
 
 ## 🚀 Quickstart & Setup Guide

@@ -18,11 +18,12 @@
   },
   "compaction_app": {
     "name": "3. History Compaction",
-    "input": 0,
+    "input": 54491,
     "cached": 0,
-    "output": 0,
-    "cost": 0.0,
-    "turns": 0
+    "output": 2043,
+    "cost": 0.129412,
+    "turns": 3,
+    "thinking": 0
   },
   "skills_app": {
     "name": "4. Modular Skills",
