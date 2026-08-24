@@ -326,11 +326,18 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             print(f"[ERROR] Failed to truncate BQ table: {e}", flush=True)
 
     def is_adk_route(self, path):
+        if path.startswith('/adk') or path.startswith('/apps') or path.startswith('/api/apps') or path.startswith('/api/run') or path.startswith('/api/events'):
+            return True
         adk_prefixes = [
-            '/adk', '/apps', '/api/apps', '/api/run', '/api/events',
-            '/static', '/assets', '/_next', '/favicon', '/node_modules'
+            '/static', '/assets', '/_next', '/favicon', '/node_modules',
+            '/chunk-', '/polyfills-', '/main-', '/styles-'
         ]
-        return any(path == p or path.startswith(p + '/') or path.startswith(p + '?') for p in adk_prefixes)
+        if any(path.startswith(p) for p in adk_prefixes):
+            return True
+        if path.endswith('.js') or path.endswith('.css') or path.endswith('.ico') or path.endswith('.woff2') or path.endswith('.ttf'):
+            if path not in ['/app.js', '/styles.css']:
+                return True
+        return False
 
     def proxy_to_adk(self):
         target_path = self.path
@@ -348,10 +355,24 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             req = urllib.request.Request(target_url, data=body, headers=req_headers, method=self.command)
             with urllib.request.urlopen(req, timeout=35) as resp:
                 self.send_response(resp.status)
+                headers_dict = dict(resp.headers)
+                content_type = headers_dict.get('Content-Type', '')
+                
+                resp_body = resp.read()
+                
+                # Inject <base href="/adk/"> if HTML response to fix relative JS/CSS imports in iframe
+                if 'text/html' in content_type:
+                    try:
+                        html_str = resp_body.decode('utf-8', errors='ignore')
+                        if '<head>' in html_str and '<base' not in html_str:
+                            html_str = html_str.replace('<head>', '<head><base href="/adk/">', 1)
+                            resp_body = html_str.encode('utf-8')
+                    except Exception as ex:
+                        print(f"[BASE INJECT ERROR] {ex}", flush=True)
+
                 for k, v in resp.headers.items():
                     if k.lower() not in ['transfer-encoding', 'content-length', 'content-encoding']:
                         self.send_header(k, v)
-                resp_body = resp.read()
                 self.send_header('Content-Length', str(len(resp_body)))
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
