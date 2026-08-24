@@ -501,10 +501,23 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (btnClearMetrics) {
     btnClearMetrics.addEventListener('click', () => {
+      const defaultZeroMetrics = {
+        "naive_app": {"name": "1. Naive Monolithic (Pro)", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0, "thinking": 0},
+        "caching_app": {"name": "2. Context Caching (Pro)", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0, "thinking": 0},
+        "compaction_app": {"name": "3. History Compaction (Pro)", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0, "thinking": 0},
+        "skills_app": {"name": "4. Modular Skills (Pro)", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0, "thinking": 0}
+      };
+      renderLiveMetrics(defaultZeroMetrics);
+      updateKpiCards(defaultZeroMetrics);
+      updateLineChart([]);
+      updateBarChart({}, defaultZeroMetrics);
+
       fetch('/api/clear-metrics', { method: 'POST' })
         .then(() => {
-          pollSessions();
-          pollMetrics();
+          setTimeout(() => {
+            pollSessions();
+            pollMetrics();
+          }, 300);
         })
         .catch(err => {
           console.error('Failed to clear live metrics:', err);

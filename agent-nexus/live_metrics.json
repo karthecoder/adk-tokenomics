@@ -1,12 +1,11 @@
 {
   "naive_app": {
     "name": "1. Naive Monolithic",
-    "input": 17601,
+    "input": 0,
     "cached": 0,
-    "output": 308,
-    "cost": 0.038282,
-    "turns": 1,
-    "thinking": 0
+    "output": 0,
+    "cost": 0.0,
+    "turns": 0
   },
   "caching_app": {
     "name": "2. Context Caching",
@@ -18,12 +17,11 @@
   },
   "compaction_app": {
     "name": "3. History Compaction",
-    "input": 54491,
+    "input": 0,
     "cached": 0,
-    "output": 2043,
-    "cost": 0.129412,
-    "turns": 3,
-    "thinking": 0
+    "output": 0,
+    "cost": 0.0,
+    "turns": 0
   },
   "skills_app": {
     "name": "4. Modular Skills",

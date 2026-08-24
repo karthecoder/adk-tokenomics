@@ -429,17 +429,27 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 # Clear BQ Table
                 self.clear_bq_table()
-                if hasattr(AgentNexusHandler, "_metrics_cache"):
-                    AgentNexusHandler._metrics_cache = {}
+                
+                default_metrics = {
+                    "naive_app": {"name": "1. Naive Monolithic (Pro)", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0, "thinking": 0},
+                    "caching_app": {"name": "2. Context Caching (Pro)", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0, "thinking": 0},
+                    "compaction_app": {"name": "3. History Compaction (Pro)", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0, "thinking": 0},
+                    "skills_app": {"name": "4. Modular Skills (Pro)", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0, "thinking": 0}
+                }
+                zero_payload = {
+                    "metrics": default_metrics,
+                    "turns": [],
+                    "simulations": {
+                        "Gemini 3.5 Flash": 0.0,
+                        "Gemini 3.6 Flash": 0.0,
+                        "Gemini 3.7 Flash": 0.0,
+                        "Claude Sonnet 5": 0.0
+                    }
+                }
+                AgentNexusHandler._metrics_cache = {"global": zero_payload}
                 
                 # Clear local backup
                 metrics_path = os.path.join('agent-nexus', 'live_metrics.json')
-                default_metrics = {
-                    "naive_app": {"name": "1. Naive Monolithic", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0},
-                    "caching_app": {"name": "2. Context Caching", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0},
-                    "compaction_app": {"name": "3. History Compaction", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0},
-                    "skills_app": {"name": "4. Modular Skills", "input": 0, "cached": 0, "output": 0, "cost": 0.0, "turns": 0}
-                }
                 with open(metrics_path, 'w') as f:
                     json.dump(default_metrics, f, indent=2)
                 
