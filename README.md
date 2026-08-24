@@ -40,39 +40,77 @@ This directory houses the python backend containing the ADK agents and optimizat
 
 ---
 
-## 🚀 Running the Sandbox Locally
+## 🚀 Quickstart & Setup Guide
 
-### Step 1: Initialize the Environment & Secrets
-Make sure you have authenticated your Google Cloud SDK:
+### Step 1: Environment Setup (`.env` Configuration)
+
+To run the sandbox successfully, create your local `.env` configuration from the provided template:
+
+```bash
+cp .env.example .env
+```
+
+Edit your **[.env](file:///Users/karticn/tokenomics/.env)** file with your Google Cloud credentials and desired model parameters:
+
+```env
+# Agent Nexus Model Configuration
+DEMO_MODEL_NAME=publishers/google/models/gemini-3.5-flash
+THINKING_BUDGET=4096
+MAX_OUTPUT_TOKENS=8192
+
+# GCP & BigQuery Credentials
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+GOOGLE_CLOUD_LOCATION=us-central1
+
+# Optional: Anthropic API Key (Required for Claude models)
+# ANTHROPIC_API_KEY=your-anthropic-api-key
+```
+
+#### Key `.env` Parameters:
+| Variable | Description | Example / Allowed Values |
+|---|---|---|
+| `DEMO_MODEL_NAME` | Active LLM model ID | `publishers/google/models/gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`, `claude-sonnet-5` |
+| `THINKING_BUDGET` | Reasoning token budget or effort | `0` (Off), `1024` (Low), `4096` (High), `-1` (Dynamic) |
+| `MAX_OUTPUT_TOKENS` | Max output token limit | `1024`, `2048`, `4096`, `8192`, `16384` |
+| `GOOGLE_CLOUD_PROJECT` | GCP Project ID (Vertex AI & BigQuery enabled) | `your-gcp-project-id` |
+| `GOOGLE_CLOUD_LOCATION` | GCP Region | `us-central1` / `global` |
+
+---
+
+### Step 2: Authenticate Google Cloud SDK
+Ensure your local environment is authenticated to access Vertex AI and BigQuery:
 ```bash
 gcloud auth application-default login
 ```
 
-Verify that **[.env](file:///Users/karticn/tokenomics/.env)** is configured with the correct Google Cloud Project and target model ID (e.g. `publishers/google/models/gemini-3.1-pro-preview`).
+---
 
-### Step 2: Launch the Servers
+### Step 3: Launch Local Servers
 
-1. **Start the Dashboard Server (Port 8000):**
+1. **Start the Control Tower Dashboard Server (Port 8002):**
    ```bash
-   ./run.sh
+   python3 server.py 8002
    ```
-2. **Start the ADK Playground Server (Port 8080):**
+2. **Start the ADK Web Playground Server (Port 8082):**
    ```bash
    cd agent-nexus
-   adk web . --host 127.0.0.1 --port 8080 --allow_origins '*' --reload_agents
+   adk web . --host 127.0.0.1 --port 8082 --allow_origins '*' --reload_agents
    ```
 
-### Step 3: Run queries and view results
-Send queries to any app naming scenario using the `agents-cli`:
-```bash
-# Naive App query
-agents-cli run --url http://127.0.0.1:8080 --mode adk --app-name naive_app "Hi, Tokyo?"
+---
 
-# Caching App query
-agents-cli run --url http://127.0.0.1:8080 --mode adk --app-name caching_app "What hotels do you recommend there?"
+### Step 4: Access Dashboard & Run Queries
 
-# Skills App query (dynamic activation)
-agents-cli run --url http://127.0.0.1:8080 --mode adk --app-name skills_app "What hotels and packing tips do you recommend for London?"
-```
+1. Open **[http://localhost:8002](http://localhost:8002)** in your browser to view the **Token Control Tower Dashboard**.
+2. Click **`💬 Agent Playground`** to interact with agents in real-time or switch to **`📊 Telemetry & Analytics`** to inspect token compounding, cost ledgers, and BigQuery metrics!
+3. Alternatively, test queries via the `agents-cli`:
+   ```bash
+   # Test Naive App (Scenario 1)
+   agents-cli run --url http://127.0.0.1:8082 --mode adk --app-name naive_app "Hi, Tokyo?"
 
-Now open **http://localhost:8000** in your browser to inspect the comparison metrics!
+   # Test Context Caching App (Scenario 2)
+   agents-cli run --url http://127.0.0.1:8082 --mode adk --app-name caching_app "What hotels do you recommend there?"
+
+   # Test Modular Skills App (Scenario 4)
+   agents-cli run --url http://127.0.0.1:8082 --mode adk --app-name skills_app "What hotels and packing tips do you recommend for London?"
+   ```
