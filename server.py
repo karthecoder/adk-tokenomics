@@ -725,7 +725,7 @@ def run_server(port):
         sys.exit(0)
 
 if __name__ == "__main__":
-    port = 8000
+    port = int(os.environ.get("PORT", 8000))
     if len(sys.argv) > 1:
         port = int(sys.argv[1])
     run_server(port)

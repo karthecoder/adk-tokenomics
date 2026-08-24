@@ -1,0 +1,16 @@
+.env
+.env.local
+.git
+.gitignore
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.adk/
+agent-nexus/.adk/
+agent-nexus/.venv/
+agent-nexus/__pycache__/
+agent-nexus/artifacts/
+agent-nexus/.clear_cutoff
+scratch/
+*.log
