@@ -144,6 +144,31 @@ body.premium-theme {
   gap: 1rem;
 }
 
+/* Focus Bar (Floating top bar in focus mode) */
+.focus-bar {
+  padding: 0.6rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  border-radius: 12px;
+}
+
+/* Focus Mode Active Rules */
+.dashboard-wrapper.focus-mode-active .top-navbar,
+.dashboard-wrapper.focus-mode-active .controls-toolbar,
+.dashboard-wrapper.focus-mode-active .kpi-row {
+  display: none !important;
+}
+
+.dashboard-wrapper.focus-mode-active .focus-bar {
+  display: flex !important;
+}
+
+.dashboard-wrapper.focus-mode-active .chat-frame-wrapper {
+  height: calc(100vh - 180px) !important;
+}
+
 /* Organized Controls Toolbar */
 .controls-toolbar {
   padding: 1rem 1.5rem;

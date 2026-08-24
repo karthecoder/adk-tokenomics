@@ -47,6 +47,23 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 50);
     });
   }
+
+  // Focus Mode (Collapsible Header & Controls)
+  const btnToggleFocusMode = document.getElementById('btn-toggle-focus-mode');
+  const btnExitFocus = document.getElementById('btn-exit-focus');
+  const dashboardWrapper = document.getElementById('dashboard-wrapper');
+
+  if (btnToggleFocusMode && dashboardWrapper) {
+    btnToggleFocusMode.addEventListener('click', () => {
+      dashboardWrapper.classList.add('focus-mode-active');
+    });
+  }
+
+  if (btnExitFocus && dashboardWrapper) {
+    btnExitFocus.addEventListener('click', () => {
+      dashboardWrapper.classList.remove('focus-mode-active');
+    });
+  }
   
   let pollIntervalId = null;
   let sessionIntervalId = null;
