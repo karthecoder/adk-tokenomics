@@ -22,13 +22,15 @@ from google.adk.models.llm_response import LlmResponse
 
 def get_agent_config():
     budget = shared_logic.get_thinking_budget()
+    max_tokens = shared_logic.get_max_output_tokens()
     if isinstance(budget, str):
-        budget_map = {"off": 0, "low": 1024, "medium": 2048, "high": 4096}
+        budget_map = {"off": 0, "low": 1024, "medium": 2048, "high": 4096, "dynamic": -1}
         numeric_budget = budget_map.get(budget.lower(), 0)
     else:
         numeric_budget = budget if budget is not None else 0
     return types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_budget=numeric_budget)
+        thinking_config=types.ThinkingConfig(thinking_budget=numeric_budget),
+        max_output_tokens=max_tokens
     )
 
 def _patched_build_anthropic_thinking_param(config):
