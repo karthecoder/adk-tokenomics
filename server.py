@@ -325,19 +325,17 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"[ERROR] Failed to truncate BQ table: {e}", flush=True)
 
-    def is_adk_route(self, path):
-        if path.startswith('/adk') or path.startswith('/apps') or path.startswith('/api/apps') or path.startswith('/api/run') or path.startswith('/api/events'):
-            return True
-        adk_prefixes = [
-            '/static', '/assets', '/_next', '/favicon', '/node_modules',
-            '/chunk-', '/polyfills-', '/main-', '/styles-'
+    def is_dashboard_route(self, path):
+        dashboard_exact = [
+            '/', '/index.html', '/styles.css', '/app.js',
+            '/api/clear-metrics', '/api/sessions', '/api/models',
+            '/api/config', '/api/benchmark',
+            '/agent-nexus/live_metrics.json', '/live_metrics.json'
         ]
-        if any(path.startswith(p) for p in adk_prefixes):
-            return True
-        if path.endswith('.js') or path.endswith('.css') or path.endswith('.ico') or path.endswith('.woff2') or path.endswith('.ttf'):
-            if path not in ['/app.js', '/styles.css']:
-                return True
-        return False
+        return path in dashboard_exact
+
+    def is_adk_route(self, path):
+        return not self.is_dashboard_route(path)
 
     def proxy_to_adk(self):
         target_path = self.path
@@ -360,13 +358,15 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 
                 resp_body = resp.read()
                 
-                # Inject <base href="/adk/"> if HTML response to fix relative JS/CSS imports in iframe
+                # Replace base href to /adk/ if HTML response so Angular SPA routes & chunks resolve cleanly
                 if 'text/html' in content_type:
                     try:
                         html_str = resp_body.decode('utf-8', errors='ignore')
-                        if '<head>' in html_str and '<base' not in html_str:
+                        if '<base href="./">' in html_str:
+                            html_str = html_str.replace('<base href="./">', '<base href="/adk/">', 1)
+                        elif '<head>' in html_str and '<base' not in html_str:
                             html_str = html_str.replace('<head>', '<head><base href="/adk/">', 1)
-                            resp_body = html_str.encode('utf-8')
+                        resp_body = html_str.encode('utf-8')
                     except Exception as ex:
                         print(f"[BASE INJECT ERROR] {ex}", flush=True)
 
