@@ -6,8 +6,8 @@
 
 | Scenario | Turns | Input (Fresh) | Input (Cached) | Output | Est. Cost | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| 1. Naive Monolithic | 0 | 0 | 0 | 0 | $0.00000 | Idle ⚪ |
-| 2. Context Caching | 3 | 53,464 | 0 | 1,041 | $0.11734 | **ACTIVE 🟢** |
+| 1. Naive Monolithic | 1 | 17,601 | 0 | 308 | $0.03828 | **ACTIVE 🟢** |
+| 2. Context Caching | 0 | 0 | 0 | 0 | $0.00000 | Idle ⚪ |
 | 3. History Compaction | 0 | 0 | 0 | 0 | $0.00000 | Idle ⚪ |
 | 4. Modular Skills | 0 | 0 | 0 | 0 | $0.00000 | Idle ⚪ |
 
@@ -16,4 +16,4 @@
 ## 💡 Live Presentation Talking Points
 * **Context Caching:** Chat with both the **Naive (naive_app)** and **Caching (caching_app)** apps to see cost savings calculate in real-time.
 
-*Report updated at: 2026-08-24 09:34:37*
+*Report updated at: 2026-08-24 10:03:02*
