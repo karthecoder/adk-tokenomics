@@ -374,6 +374,12 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"error": "Bad Gateway", "details": str(e)}).encode('utf-8'))
 
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+
     def do_OPTIONS(self):
         parsed_url = urlparse(self.path)
         path = parsed_url.path
