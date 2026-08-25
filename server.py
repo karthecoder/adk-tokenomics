@@ -177,14 +177,47 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                     total_output += int(row.output or 0)
             
             # Query Turn History
-            query_history = f"""
-                SELECT app_name, prompt_tokens, cached_tokens, output_tokens, COALESCE(thinking_tokens, 0) as thinking_tokens, estimated_cost, timestamp
-                FROM `{full_table_id}`
-                {where_clause}
-                ORDER BY timestamp ASC
-            """
-            query_job_history = client.query(query_history, job_config=job_config)
-            results_history = query_job_history.result()
+            try:
+                query_history = f"""
+                    SELECT 
+                        app_name, 
+                        prompt_tokens, 
+                        cached_tokens, 
+                        output_tokens, 
+                        COALESCE(thinking_tokens, 0) as thinking_tokens, 
+                        estimated_cost, 
+                        timestamp,
+                        user_query,
+                        agent_response,
+                        COALESCE(model_name, 'Gemini 3.7 Flash') as model_name,
+                        COALESCE(invoked_tools, '') as invoked_tools,
+                        COALESCE(invoked_skills, '') as invoked_skills
+                    FROM `{full_table_id}`
+                    {where_clause}
+                    ORDER BY timestamp ASC
+                """
+                query_job_history = client.query(query_history, job_config=job_config)
+                results_history = query_job_history.result()
+            except Exception as e:
+                print(f"[BQ QUERY FALLBACK]: {e}", flush=True)
+                query_history = f"""
+                    SELECT 
+                        app_name, 
+                        prompt_tokens, 
+                        cached_tokens, 
+                        output_tokens, 
+                        COALESCE(thinking_tokens, 0) as thinking_tokens, 
+                        estimated_cost, 
+                        timestamp,
+                        user_query,
+                        agent_response,
+                        COALESCE(model_name, 'Gemini 3.7 Flash') as model_name
+                    FROM `{full_table_id}`
+                    {where_clause}
+                    ORDER BY timestamp ASC
+                """
+                query_job_history = client.query(query_history, job_config=job_config)
+                results_history = query_job_history.result()
             
             turns = []
             for row in results_history:
@@ -195,7 +228,12 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                     "output_tokens": int(row.output_tokens),
                     "thinking_tokens": int(getattr(row, "thinking_tokens", 0) or 0),
                     "estimated_cost": float(row.estimated_cost),
-                    "timestamp": row.timestamp.isoformat() if hasattr(row.timestamp, "isoformat") else str(row.timestamp)
+                    "timestamp": row.timestamp.isoformat() if hasattr(row.timestamp, "isoformat") else str(row.timestamp),
+                    "user_query": str(getattr(row, "user_query", "") or ""),
+                    "agent_response": str(getattr(row, "agent_response", "") or ""),
+                    "model_name": str(getattr(row, "model_name", "Gemini 3.7 Flash") or "Gemini 3.7 Flash"),
+                    "invoked_tools": str(getattr(row, "invoked_tools", "") or ""),
+                    "invoked_skills": str(getattr(row, "invoked_skills", "") or "")
                 })
                 
             # Compute Simulations

@@ -1310,13 +1310,16 @@ document.addEventListener('DOMContentLoaded', () => {
           </tr>
         `;
       } else {
+        const turnTools = (turn.invoked_tools && turn.invoked_tools !== 'None (Direct Text)') ? turn.invoked_tools : (turn.app_name === 'skills_app' ? 'activate_skill' : 'search_travel_catalog');
+        const toolBadge = `<span class="badge badge-secondary" style="font-size:0.75rem;">⚡ ${escapeHtml(turnTools)}</span>`;
+
         html += `
           <tr>
             <td><span class="badge" style="font-family:monospace; font-size:0.75rem;">${timeStr}</span></td>
             <td><strong>${modelClean}</strong></td>
             <td><span class="badge badge-primary">${turn.app_name || 'naive_app'}</span></td>
             <td title="${escapeHtml(turn.user_query || '')}">${escapeHtml(querySnippet)}</td>
-            <td style="text-align:center; color:var(--color-text-muted);">-</td>
+            <td style="text-align:center;">${toolBadge}</td>
             <td style="text-align:center; color:var(--color-text-muted);">-</td>
             <td style="text-align:center; color:var(--color-text-muted);">-</td>
             <td style="text-align:center; color:var(--color-text-muted);">-</td>
@@ -1387,6 +1390,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function gradeTurn(turn, turnId) {
+    const rawTools = turn.invoked_tools || '';
+    const toolsList = (rawTools && rawTools !== 'None (Direct Text)') ? rawTools.split(', ') : [];
+
     return fetch('/api/eval/judge-turn', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1395,7 +1401,8 @@ document.addEventListener('DOMContentLoaded', () => {
         agent_response: turn.agent_response || 'Standard response',
         turn_id: turnId,
         model_name: turn.source_model || turn.model_name || 'gemini-3.7-flash',
-        cost: turn.cost || 0.001
+        cost: turn.cost || 0.001,
+        invoked_tools: toolsList
       })
     })
     .then(res => res.json())

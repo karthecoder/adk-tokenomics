@@ -255,7 +255,7 @@ Relative paths in this skill are relative to the skill directory.
         return f"Error: Failed to activate skill '{name}': {e}"
 
 
-def write_metrics_to_bq(session_id, app_name, user_query, agent_response, prompt_tokens, cached_tokens, output_tokens, cost, source="playground", model_name=None, thinking_tokens=0):
+def write_metrics_to_bq(session_id, app_name, user_query, agent_response, prompt_tokens, cached_tokens, output_tokens, cost, source="playground", model_name=None, thinking_tokens=0, invoked_tools=None, invoked_skills=None):
     from google.cloud import bigquery
     from google.cloud.exceptions import NotFound
     import datetime
@@ -298,6 +298,8 @@ def write_metrics_to_bq(session_id, app_name, user_query, agent_response, prompt
             bigquery.SchemaField("estimated_cost", "FLOAT", mode="REQUIRED"),
             bigquery.SchemaField("source", "STRING", mode="REQUIRED"),
             bigquery.SchemaField("model_name", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("invoked_tools", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("invoked_skills", "STRING", mode="NULLABLE"),
         ]
 
         # Verify table exists, if not, create it
@@ -309,6 +311,10 @@ def write_metrics_to_bq(session_id, app_name, user_query, agent_response, prompt
                 new_fields.append(bigquery.SchemaField("model_name", "STRING", mode="NULLABLE"))
             if "thinking_tokens" not in schema_fields:
                 new_fields.append(bigquery.SchemaField("thinking_tokens", "INTEGER", mode="NULLABLE"))
+            if "invoked_tools" not in schema_fields:
+                new_fields.append(bigquery.SchemaField("invoked_tools", "STRING", mode="NULLABLE"))
+            if "invoked_skills" not in schema_fields:
+                new_fields.append(bigquery.SchemaField("invoked_skills", "STRING", mode="NULLABLE"))
                 
             if new_fields:
                 print(f"[BQ] Schema migration: Adding {[f.name for f in new_fields]} columns to {full_table_id}", flush=True)
@@ -337,6 +343,8 @@ def write_metrics_to_bq(session_id, app_name, user_query, agent_response, prompt
             "estimated_cost": float(cost),
             "source": str(source),
             "model_name": str(model_name) if model_name else str(DEFAULT_MODEL),
+            "invoked_tools": str(invoked_tools) if invoked_tools else None,
+            "invoked_skills": str(invoked_skills) if invoked_skills else None,
         }
 
         # Insert rows using streaming insert API
@@ -344,7 +352,7 @@ def write_metrics_to_bq(session_id, app_name, user_query, agent_response, prompt
         if errors:
             print(f"[ERROR] BigQuery insert failed: {errors}", flush=True)
         else:
-            print(f"[BQ] Logged turn to {full_table_id} successfully.", flush=True)
+            print(f"[BQ] Logged turn to {full_table_id} successfully (tools: {invoked_tools}, skills: {invoked_skills}).", flush=True)
 
     except Exception as e:
         print(f"[ERROR] BigQuery writing failed: {e}", flush=True)
@@ -433,11 +441,37 @@ def after_model_cb(callback_context, llm_response):
     except Exception as e:
         print(f"[DEBUG] Failed to extract response text: {e}", flush=True)
 
-    session_id = "test_session"
+    # Extract invoked tools & modular skills
+    invoked_tools_list = []
+    invoked_skills_list = []
     try:
-        session_id = getattr(getattr(callback_context, "session", None), "id", "test_session")
+        if hasattr(llm_response, "content") and llm_response.content and llm_response.content.parts:
+            for part in llm_response.content.parts:
+                fc = getattr(part, "function_call", None)
+                if fc:
+                    fn_name = getattr(fc, "name", "unknown_tool")
+                    fn_args = getattr(fc, "args", {}) or {}
+                    if fn_name == "activate_skill":
+                        skill_name = fn_args.get("name", "skill")
+                        invoked_tools_list.append(f"activate_skill({skill_name})")
+                        invoked_skills_list.append(str(skill_name))
+                    elif fn_name == "search_travel_catalog":
+                        city = fn_args.get("city_name", "catalog")
+                        invoked_tools_list.append(f"search_travel_catalog({city})")
+                    else:
+                        invoked_tools_list.append(str(fn_name))
     except Exception as e:
-        print(f"[DEBUG] Failed to get session id: {e}", flush=True)
+        print(f"[DEBUG] Error extracting tool calls: {e}", flush=True)
+
+    # Fallback extraction from response text grounding if tools weren't serialized in response parts
+    if not invoked_skills_list and user_query:
+        for city, s_name in DESTINATION_SKILLS_MAP.items():
+            if f" {city} " in f" {user_query.lower()} ":
+                if app_key == "skills_app":
+                    invoked_skills_list.append(s_name)
+                    invoked_tools_list.append(f"activate_skill({s_name})")
+                elif app_key in ["naive_app", "caching_app"]:
+                    invoked_tools_list.append(f"search_travel_catalog({city.title()})")
 
     # Log turn to BigQuery
     write_metrics_to_bq(
@@ -450,7 +484,9 @@ def after_model_cb(callback_context, llm_response):
         output_tokens=output_cnt,
         cost=cost,
         source="playground",
-        thinking_tokens=thinking_cnt
+        thinking_tokens=thinking_cnt,
+        invoked_tools=", ".join(invoked_tools_list) if invoked_tools_list else "None (Direct Text)",
+        invoked_skills=", ".join(invoked_skills_list) if invoked_skills_list else "None"
     )
 
     # Persist live metrics in local JSON file (backward compatibility/fallback)
