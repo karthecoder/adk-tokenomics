@@ -31,11 +31,14 @@ Recommended because it is very convenient."""
         self.assertGreaterEqual(score["quality"], 1.0)
         self.assertLessEqual(score["quality"], 5.0)
 
-    def test_quality_per_dollar_calculation(self):
-        cost = 0.002
-        composite_score = 4.8
-        q_per_dollar = round(composite_score / max(cost, 0.00001), 1)
-        self.assertEqual(q_per_dollar, 2400.0)
+    def test_evaluate_tool_and_skill_routing(self):
+        query = "What are the local rules and quiet hours for Zurich?"
+        response = "In Zurich, quiet hours are enforced from 10 PM. Emergency is 112."
+        res = shared_logic.evaluate_tool_and_skill_routing(query, response, ["activate_skill(name='zurich-travel')"])
+        self.assertIn("zurich-travel", res["expected_skills"])
+        self.assertEqual(res["skill_score"], 5.0)
+        self.assertEqual(res["tool_score"], 5.0)
+        self.assertEqual(res["verdict"], "PERFECT MATCH 🎯")
 
 if __name__ == '__main__':
     unittest.main()

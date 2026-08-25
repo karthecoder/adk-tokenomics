@@ -405,6 +405,7 @@
                 <th>Model</th>
                 <th>Scenario App</th>
                 <th>User Query</th>
+                <th style="text-align:center;">Tool & Skill Routing</th>
                 <th style="text-align:center;">Quality (1-5)</th>
                 <th style="text-align:center;">Accuracy (1-5)</th>
                 <th style="text-align:center;">Reasoning (1-5)</th>
@@ -415,7 +416,7 @@
             </thead>
             <tbody id="eval-scorecard-table-body">
               <tr>
-                <td colspan="10" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
+                <td colspan="11" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
                   Awaiting conversational turns to evaluate... Send a query in the Agent Playground or run a batch benchmark!
                 </td>
               </tr>
@@ -430,11 +431,11 @@
 
   <!-- Judge Rationale Modal -->
   <div id="eval-modal-overlay" class="modal-overlay hidden" style="display:none;">
-    <div class="modal-card glass-card" style="max-width: 650px;">
+    <div class="modal-card glass-card" style="max-width: 680px;">
       <div class="modal-header">
         <div>
-          <h2 class="modal-title">LLM Judge Rationale</h2>
-          <p class="modal-subtitle">Comprehensive breakdown of response grading criteria</p>
+          <h2 class="modal-title">LLM Judge Rationale & Routing Scorecard</h2>
+          <p class="modal-subtitle">Comprehensive breakdown of response grading and tool/skill invocation accuracy</p>
         </div>
         <button id="btn-close-eval-modal" class="btn-close-modal">&times;</button>
       </div>
@@ -445,19 +446,45 @@
           <div id="modal-eval-query" style="font-size:0.9rem; color:var(--color-text); font-weight:500;">-</div>
         </div>
 
-        <!-- Metric Scores Row -->
-        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0.75rem; margin-bottom:1rem;">
-          <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:0.75rem; text-align:center;">
-            <div style="font-size:0.75rem; color:#60a5fa;">Quality</div>
-            <div id="modal-eval-quality" style="font-size:1.3rem; font-weight:700; color:#fff;">-</div>
+        <!-- Metric Scores Row (5 Dimensions) -->
+        <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:0.5rem; margin-bottom:1rem;">
+          <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:0.6rem 0.4rem; text-align:center;">
+            <div style="font-size:0.7rem; color:#60a5fa;">Quality</div>
+            <div id="modal-eval-quality" style="font-size:1.15rem; font-weight:700; color:#fff;">-</div>
           </div>
-          <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:0.75rem; text-align:center;">
-            <div style="font-size:0.75rem; color:#34d399;">Accuracy</div>
-            <div id="modal-eval-accuracy" style="font-size:1.3rem; font-weight:700; color:#fff;">-</div>
+          <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:0.6rem 0.4rem; text-align:center;">
+            <div style="font-size:0.7rem; color:#34d399;">Accuracy</div>
+            <div id="modal-eval-accuracy" style="font-size:1.15rem; font-weight:700; color:#fff;">-</div>
           </div>
-          <div style="background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.2); border-radius:8px; padding:0.75rem; text-align:center;">
-            <div style="font-size:0.75rem; color:#c084fc;">Reasoning</div>
-            <div id="modal-eval-reasoning" style="font-size:1.3rem; font-weight:700; color:#fff;">-</div>
+          <div style="background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.2); border-radius:8px; padding:0.6rem 0.4rem; text-align:center;">
+            <div style="font-size:0.7rem; color:#c084fc;">Reasoning</div>
+            <div id="modal-eval-reasoning" style="font-size:1.15rem; font-weight:700; color:#fff;">-</div>
+          </div>
+          <div style="background:rgba(234,179,8,0.08); border:1px solid rgba(234,179,8,0.2); border-radius:8px; padding:0.6rem 0.4rem; text-align:center;">
+            <div style="font-size:0.7rem; color:#facc15;">Tool Match</div>
+            <div id="modal-eval-tool-score" style="font-size:1.15rem; font-weight:700; color:#fff;">-</div>
+          </div>
+          <div style="background:rgba(244,63,94,0.08); border:1px solid rgba(244,63,94,0.2); border-radius:8px; padding:0.6rem 0.4rem; text-align:center;">
+            <div style="font-size:0.7rem; color:#fb7185;">Skill Match</div>
+            <div id="modal-eval-skill-score" style="font-size:1.15rem; font-weight:700; color:#fff;">-</div>
+          </div>
+        </div>
+
+        <!-- Tool & Skill Routing Diagnostic Panel -->
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+            <span style="font-size:0.75rem; text-transform:uppercase; color:var(--color-primary-light); font-weight:700;">Tool & Skill Routing Analysis</span>
+            <span id="modal-eval-routing-verdict" class="badge badge-success" style="font-size:0.75rem;">PERFECT MATCH 🎯</span>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; font-size:0.8rem;">
+            <div>
+              <span style="color:var(--color-text-muted);">Expected Target:</span>
+              <div id="modal-eval-expected-target" style="color:#60a5fa; font-weight:600; margin-top:0.15rem;">paris-travel</div>
+            </div>
+            <div>
+              <span style="color:var(--color-text-muted);">Invoked Action:</span>
+              <div id="modal-eval-invoked-action" style="color:#34d399; font-weight:600; margin-top:0.15rem;">activate_skill(paris-travel)</div>
+            </div>
           </div>
         </div>
 

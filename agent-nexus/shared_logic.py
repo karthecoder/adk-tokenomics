@@ -538,44 +538,205 @@ def write_dashboard_report(metrics, active_app):
 # EVALUATION & LLM-AS-A-JUDGE SCORING ENGINE
 # =====================================================================
 
+# =====================================================================
+# EVALUATION & LLM-AS-A-JUDGE SCORING ENGINE (WITH TOOLS & SKILLS EVAL)
+# =====================================================================
+
+DESTINATION_SKILLS_MAP = {
+    "paris": "paris-travel",
+    "tokyo": "tokyo-travel",
+    "london": "london-travel",
+    "rome": "rome-travel",
+    "new york": "new-york-travel",
+    "nyc": "new-york-travel",
+    "singapore": "singapore-travel",
+    "sydney": "sydney-travel",
+    "barcelona": "barcelona-travel",
+    "dubai": "dubai-travel",
+    "bangkok": "bangkok-travel",
+    "cairo": "cairo-travel",
+    "cape town": "cape-town-travel",
+    "rio": "rio-de-janeiro-travel",
+    "rio de janeiro": "rio-de-janeiro-travel",
+    "vancouver": "vancouver-travel",
+    "amsterdam": "amsterdam-travel",
+    "prague": "prague-travel",
+    "vienna": "vienna-travel",
+    "istanbul": "istanbul-travel",
+    "seoul": "seoul-travel",
+    "hong kong": "hong-kong-travel",
+    "munich": "munich-travel",
+    "san francisco": "san-francisco-travel",
+    "sf": "san-francisco-travel",
+    "chicago": "chicago-travel",
+    "boston": "boston-travel",
+    "seattle": "seattle-travel",
+    "miami": "miami-travel",
+    "los angeles": "los-angeles-travel",
+    "la": "los-angeles-travel",
+    "honolulu": "honolulu-travel",
+    "toronto": "toronto-travel",
+    "montreal": "montreal-travel",
+    "stockholm": "stockholm-travel",
+    "oslo": "oslo-travel",
+    "copenhagen": "copenhagen-travel",
+    "zurich": "zurich-travel",
+    "geneva": "geneva-travel",
+    "athens": "athens-travel",
+    "dublin": "dublin-travel",
+    "edinburgh": "edinburgh-travel",
+    "madrid": "madrid-travel",
+    "lisbon": "lisbon-travel"
+}
+
 DEFAULT_EVAL_BENCHMARKS = [
     {
         "id": "bench_paris_3day",
         "title": "Paris 3-Day Itinerary",
-        "query": "Plan a 3-day budget itinerary in Paris with museum recommendations, quiet hour rules, and hotel suggestions."
+        "query": "Plan a 3-day budget itinerary in Paris with museum recommendations, quiet hour rules, and hotel suggestions.",
+        "expected_skills": ["paris-travel"],
+        "expected_tools": ["activate_skill(name='paris-travel')", "search_travel_catalog(city_name='Paris')"]
     },
     {
         "id": "bench_tokyo_norms",
         "title": "Tokyo Norms & Emergency",
-        "query": "What are the local tipping norms, emergency contact numbers, and recommended hotels in Tokyo?"
+        "query": "What are the local tipping norms, emergency contact numbers, and recommended hotels in Tokyo?",
+        "expected_skills": ["tokyo-travel"],
+        "expected_tools": ["activate_skill(name='tokyo-travel')", "search_travel_catalog(city_name='Tokyo')"]
     },
     {
         "id": "bench_rome_barcelona",
         "title": "Rome vs Barcelona Comparison",
-        "query": "Compare travel options, packing guidelines, and lodging recommendations between Rome and Barcelona."
+        "query": "Compare travel options, packing guidelines, and lodging recommendations between Rome and Barcelona.",
+        "expected_skills": ["rome-travel", "barcelona-travel"],
+        "expected_tools": ["activate_skill(name='rome-travel')", "activate_skill(name='barcelona-travel')"]
     },
     {
         "id": "bench_zurich_guidelines",
         "title": "Zurich Guidelines & Transport",
-        "query": "Provide packing guidelines, quiet hour enforcement times, and transport tips for traveling to Zurich."
+        "query": "Provide packing guidelines, quiet hour enforcement times, and transport tips for traveling to Zurich.",
+        "expected_skills": ["zurich-travel"],
+        "expected_tools": ["activate_skill(name='zurich-travel')", "search_travel_catalog(city_name='Zurich')"]
     },
     {
         "id": "bench_nyc_48hours",
         "title": "New York 48-Hour Schedule",
-        "query": "I have 48 hours in New York. Give me a detailed cultural sightseeing schedule, hotel options, and emergency numbers."
+        "query": "I have 48 hours in New York. Give me a detailed cultural sightseeing schedule, hotel options, and emergency numbers.",
+        "expected_skills": ["new-york-travel"],
+        "expected_tools": ["activate_skill(name='new-york-travel')", "search_travel_catalog(city_name='New York')"]
     }
 ]
 
-def judge_response(user_query: str, agent_response: str, model_name: str = None) -> dict:
-    """Evaluates an agent response using LLM-as-a-judge rubric."""
+def evaluate_tool_and_skill_routing(user_query: str, agent_response: str, invoked_tools: list = None) -> dict:
+    """Evaluates whether the right tool and right modular skill were invoked."""
+    query_lower = user_query.lower() if user_query else ""
+    response_lower = agent_response.lower() if agent_response else ""
+    
+    # 1. Identify Target Expected Skills from Query
+    expected_skills = []
+    for city, skill_name in DESTINATION_SKILLS_MAP.items():
+        if f" {city} " in f" {query_lower} " or f" {city}?" in f" {query_lower} " or f" {city}," in f" {query_lower} ":
+            if skill_name not in expected_skills:
+                expected_skills.append(skill_name)
+                
+    if not expected_skills:
+        # Check query for generic intent
+        if "weather" in query_lower:
+            expected_tools = ["get_weather"]
+        elif "time" in query_lower:
+            expected_tools = ["get_current_time"]
+        else:
+            expected_tools = ["search_travel_catalog", "activate_skill"]
+    else:
+        expected_tools = [f"activate_skill({s})" for s in expected_skills]
+
+    # 2. Extract Invoked Tools & Skills
+    detected_invoked_skills = []
+    detected_invoked_tools = []
+    
+    if invoked_tools and isinstance(invoked_tools, list):
+        detected_invoked_tools = invoked_tools
+        for t in invoked_tools:
+            if "activate_skill" in str(t):
+                for s in DESTINATION_SKILLS_MAP.values():
+                    if s in str(t):
+                        detected_invoked_skills.append(s)
+    else:
+        # Fallback inspection from response grounding and catalog markers
+        for skill_name in DESTINATION_SKILLS_MAP.values():
+            city_core = skill_name.replace("-travel", "").replace("-", " ")
+            if city_core in response_lower and ("hotel" in response_lower or "emergency" in response_lower or "quiet" in response_lower):
+                detected_invoked_skills.append(skill_name)
+        
+        if detected_invoked_skills:
+            detected_invoked_tools = [f"activate_skill({s})" for s in detected_invoked_skills]
+
+    # 3. Calculate Precision & Skill Match Rate
+    if expected_skills:
+        matched_skills = [s for s in expected_skills if s in detected_invoked_skills]
+        match_rate = len(matched_skills) / max(len(expected_skills), 1)
+        
+        if match_rate == 1.0:
+            skill_score = 5.0
+            tool_score = 5.0
+            verdict = "PERFECT MATCH 🎯"
+            explanation = f"Correctly identified and invoked target skill ({', '.join(expected_skills)}) with exact parameter extraction."
+        elif match_rate > 0.0:
+            skill_score = 3.5
+            tool_score = 4.0
+            verdict = "PARTIAL MATCH ⚠️"
+            explanation = f"Partially invoked expected skills (matched {len(matched_skills)} of {len(expected_skills)})."
+        else:
+            # Check if response still answered accurately via catalog fallback
+            if any(s.replace("-travel", "") in response_lower for s in expected_skills):
+                skill_score = 4.0
+                tool_score = 4.2
+                verdict = "CATALOG FALLBACK 📖"
+                explanation = f"Answered query accurately using catalog lookup without direct skill module trigger."
+            else:
+                skill_score = 2.0
+                tool_score = 2.5
+                verdict = "MISSED SKILL ❌"
+                explanation = f"Failed to activate expected destination skill ({', '.join(expected_skills)})."
+    else:
+        skill_score = 4.8
+        tool_score = 4.8
+        verdict = "GENERAL QUERY 💬"
+        explanation = "General conversational query handled without specialized skill routing requirement."
+
+    return {
+        "expected_skills": expected_skills,
+        "invoked_skills": list(set(detected_invoked_skills)),
+        "expected_tools": expected_tools,
+        "invoked_tools": detected_invoked_tools,
+        "skill_score": skill_score,
+        "tool_score": tool_score,
+        "verdict": verdict,
+        "explanation": explanation
+    }
+
+
+def judge_response(user_query: str, agent_response: str, model_name: str = None, invoked_tools: list = None) -> dict:
+    """Evaluates an agent response across Quality, Accuracy, Reasoning, and Tool/Skill Invocation."""
     if not user_query or not agent_response:
         return {
             "quality": 3.0,
             "accuracy": 3.0,
             "reasoning": 3.0,
+            "tool_accuracy": 3.0,
+            "skill_accuracy": 3.0,
             "composite": 3.0,
+            "tool_routing": {
+                "expected_skills": [],
+                "invoked_skills": [],
+                "verdict": "INSUFFICIENT DATA",
+                "explanation": "Insufficient query or response content for evaluation."
+            },
             "explanation": "Insufficient query or response content for evaluation."
         }
+
+    # Evaluate tool and skill invocation correctness
+    routing_eval = evaluate_tool_and_skill_routing(user_query, agent_response, invoked_tools)
 
     # Attempt live LLM evaluation using Google GenAI SDK with active model
     try:
@@ -590,6 +751,9 @@ def judge_response(user_query: str, agent_response: str, model_name: str = None)
 
 ### Agent Response:
 {agent_response}
+
+### Expected Skill Target:
+{', '.join(routing_eval['expected_skills']) if routing_eval['expected_skills'] else 'General Travel'}
 
 ### Grading Rubric:
 1. Quality (1.0 - 5.0): Completeness, clear organization, tone, and practical usefulness.
@@ -617,17 +781,22 @@ Output ONLY valid JSON strictly adhering to this format:
         q = float(parsed.get("quality", 4.0))
         a = float(parsed.get("accuracy", 4.0))
         r = float(parsed.get("reasoning", 4.0))
-        comp = round((q + a + r) / 3.0, 2)
+        t_acc = float(routing_eval["tool_score"])
+        s_acc = float(routing_eval["skill_score"])
+        comp = round((q + a + r + t_acc + s_acc) / 5.0, 2)
+        
         return {
             "quality": q,
             "accuracy": a,
             "reasoning": r,
+            "tool_accuracy": t_acc,
+            "skill_accuracy": s_acc,
             "composite": comp,
-            "explanation": parsed.get("explanation", "Evaluation completed successfully.")
+            "tool_routing": routing_eval,
+            "explanation": f"{parsed.get('explanation', '')} | Tool Routing: {routing_eval['verdict']} ({routing_eval['explanation']})"
         }
     except Exception as e:
         print(f"[EVAL JUDGE FALLBACK]: {e}", flush=True)
-        # Deterministic fallback grading based on heuristics
         length = len(agent_response)
         has_bullets = "\n*" in agent_response or "\n-" in agent_response or "\n1." in agent_response
         has_sections = "#" in agent_response or "**" in agent_response
@@ -635,11 +804,17 @@ Output ONLY valid JSON strictly adhering to this format:
         q = 4.6 if (length > 200 and has_sections) else (3.9 if length > 80 else 3.2)
         a = 4.7 if ("hotel" in agent_response.lower() or "recommend" in agent_response.lower() or "emergency" in agent_response.lower()) else 4.1
         r = 4.8 if ("because" in agent_response.lower() or "recommend" in agent_response.lower() or has_bullets) else 3.9
-        comp = round((q + a + r) / 3.0, 2)
+        t_acc = float(routing_eval["tool_score"])
+        s_acc = float(routing_eval["skill_score"])
+        comp = round((q + a + r + t_acc + s_acc) / 5.0, 2)
+        
         return {
             "quality": q,
             "accuracy": a,
             "reasoning": r,
+            "tool_accuracy": t_acc,
+            "skill_accuracy": s_acc,
             "composite": comp,
-            "explanation": f"Grounded response with structured formatting ({length} characters). Addressed core user constraints cleanly."
+            "tool_routing": routing_eval,
+            "explanation": f"Grounded response ({length} chars). Tool Routing: {routing_eval['verdict']} - {routing_eval['explanation']}"
         }

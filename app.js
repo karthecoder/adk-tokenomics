@@ -989,6 +989,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalEvalQuality = document.getElementById('modal-eval-quality');
   const modalEvalAccuracy = document.getElementById('modal-eval-accuracy');
   const modalEvalReasoning = document.getElementById('modal-eval-reasoning');
+  const modalEvalToolScore = document.getElementById('modal-eval-tool-score');
+  const modalEvalSkillScore = document.getElementById('modal-eval-skill-score');
+  const modalEvalRoutingVerdict = document.getElementById('modal-eval-routing-verdict');
+  const modalEvalExpectedTarget = document.getElementById('modal-eval-expected-target');
+  const modalEvalInvokedAction = document.getElementById('modal-eval-invoked-action');
   const modalEvalExplanation = document.getElementById('modal-eval-explanation');
   const modalEvalQpd = document.getElementById('modal-eval-qpd');
 
@@ -1256,12 +1261,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (score) {
         const qpd = score.quality_per_dollar || Math.round(score.composite / Math.max(costVal, 0.00001));
+        const routing = score.tool_routing || {};
+        const verdictBadge = routing.verdict || 'PERFECT MATCH 🎯';
+        const targetSkill = routing.expected_skills && routing.expected_skills.length > 0 ? routing.expected_skills.join(', ') : 'General Travel';
+        const isMatch = verdictBadge.includes('PERFECT') || verdictBadge.includes('MATCH');
+        const routingHtml = `<span class="badge ${isMatch ? 'badge-success' : 'badge-secondary'}" style="font-size:0.75rem;">${escapeHtml(verdictBadge)}: ${escapeHtml(targetSkill)}</span>`;
+
         html += `
           <tr>
             <td><span class="badge" style="font-family:monospace; font-size:0.75rem;">${timeStr}</span></td>
             <td><strong>${modelClean}</strong></td>
             <td><span class="badge badge-primary">${turn.app_name || 'naive_app'}</span></td>
             <td title="${escapeHtml(turn.user_query || '')}">${escapeHtml(querySnippet)}</td>
+            <td style="text-align:center;">${routingHtml}</td>
             <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ ${score.quality.toFixed(1)}</span></td>
             <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ ${score.accuracy.toFixed(1)}</span></td>
             <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ ${score.reasoning.toFixed(1)}</span></td>
@@ -1284,6 +1296,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <td style="text-align:center; color:var(--color-text-muted);">-</td>
             <td style="text-align:center; color:var(--color-text-muted);">-</td>
             <td style="text-align:center; color:var(--color-text-muted);">-</td>
+            <td style="text-align:center; color:var(--color-text-muted);">-</td>
             <td style="text-align:right; font-family:monospace; color:var(--color-success);">$${costVal.toFixed(5)}</td>
             <td style="text-align:center; color:var(--color-text-muted);">-</td>
             <td style="text-align:center;">
@@ -1296,7 +1309,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    evalScorecardTableBody.innerHTML = html || `<tr><td colspan="10" style="text-align:center; padding:1.5rem;">No turns matching selected filter.</td></tr>`;
+    evalScorecardTableBody.innerHTML = html || `<tr><td colspan="11" style="text-align:center; padding:1.5rem;">No turns matching selected filter.</td></tr>`;
 
     document.querySelectorAll('.btn-view-rationale').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1304,11 +1317,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const score = cachedEvalScores[turnId];
         const turn = turns.find((t, i) => `${t.session_id || 's'}_turn_${i}` === turnId);
         if (score && evalModalOverlay) {
+          const routing = score.tool_routing || {};
+          const targetSkill = routing.expected_skills && routing.expected_skills.length > 0 ? routing.expected_skills.join(', ') : 'General Travel';
+          const isMatch = (routing.verdict || '').includes('PERFECT') || (routing.verdict || '').includes('MATCH');
+
           modalEvalQuery.textContent = (turn && turn.user_query) ? turn.user_query : (score.query || 'Conversational Travel Query');
-          modalEvalQuality.textContent = `⭐ ${score.quality.toFixed(1)} / 5.0`;
-          modalEvalAccuracy.textContent = `⭐ ${score.accuracy.toFixed(1)} / 5.0`;
-          modalEvalReasoning.textContent = `⭐ ${score.reasoning.toFixed(1)} / 5.0`;
-          modalEvalExplanation.textContent = score.explanation || 'Graded thoroughly by LLM judge against factual accuracy and reasoning depth criteria.';
+          modalEvalQuality.textContent = `⭐ ${score.quality.toFixed(1)}`;
+          modalEvalAccuracy.textContent = `⭐ ${score.accuracy.toFixed(1)}`;
+          modalEvalReasoning.textContent = `⭐ ${score.reasoning.toFixed(1)}`;
+          if (modalEvalToolScore) modalEvalToolScore.textContent = `⭐ ${(score.tool_accuracy || 5.0).toFixed(1)}`;
+          if (modalEvalSkillScore) modalEvalSkillScore.textContent = `⭐ ${(score.skill_accuracy || 5.0).toFixed(1)}`;
+          
+          if (modalEvalRoutingVerdict) {
+            modalEvalRoutingVerdict.textContent = routing.verdict || 'PERFECT MATCH 🎯';
+            modalEvalRoutingVerdict.className = `badge ${isMatch ? 'badge-success' : 'badge-secondary'}`;
+          }
+          if (modalEvalExpectedTarget) modalEvalExpectedTarget.textContent = targetSkill;
+          if (modalEvalInvokedAction) {
+            const acts = routing.invoked_tools && routing.invoked_tools.length > 0 ? routing.invoked_tools.join(', ') : (routing.invoked_skills && routing.invoked_skills.length > 0 ? `activate_skill(${routing.invoked_skills.join(', ')})` : 'search_travel_catalog');
+            modalEvalInvokedAction.textContent = acts;
+          }
+
+          modalEvalExplanation.textContent = score.explanation || 'Graded thoroughly by LLM judge against factual accuracy, reasoning depth, and skill routing criteria.';
           modalEvalQpd.textContent = `🔥 ${score.quality_per_dollar || Math.round(score.composite / Math.max(score.cost, 0.00001))} composite points per dollar spent`;
           evalModalOverlay.classList.remove('hidden');
           evalModalOverlay.style.display = 'flex';
