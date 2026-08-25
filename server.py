@@ -5,6 +5,7 @@ Handles static serving and routes API POST calls to run_benchmark.py.
 """
 
 import datetime
+import time
 import gzip
 import http.server
 import json
