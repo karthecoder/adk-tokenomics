@@ -328,13 +328,14 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             print(f"[ERROR] Failed to truncate BQ table: {e}", flush=True)
 
     def is_dashboard_route(self, path):
-        dashboard_exact = [
-            '/', '/index.html', '/styles.css', '/app.js',
-            '/api/clear-metrics', '/api/sessions', '/api/models',
-            '/api/config', '/api/benchmark',
-            '/agent-nexus/live_metrics.json', '/live_metrics.json'
-        ]
-        return path in dashboard_exact
+        if path in ['/', '/index.html', '/styles.css', '/app.js', '/live_metrics.json', '/agent-nexus/live_metrics.json']:
+            return True
+        if path.startswith('/api/'):
+            # Forward only genuine ADK endpoints if any
+            if path.startswith('/api/apps') or path.startswith('/api/run') or path.startswith('/api/events'):
+                return False
+            return True
+        return False
 
     def is_adk_route(self, path):
         return not self.is_dashboard_route(path)
