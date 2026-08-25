@@ -473,6 +473,12 @@ def after_model_cb(callback_context, llm_response):
                 elif app_key in ["naive_app", "caching_app"]:
                     invoked_tools_list.append(f"search_travel_catalog({city.title()})")
 
+    session_id = "test_session"
+    try:
+        session_id = getattr(getattr(callback_context, "session", None), "id", "test_session")
+    except Exception as e:
+        print(f"[DEBUG] Failed to get session id: {e}", flush=True)
+
     # Log turn to BigQuery
     write_metrics_to_bq(
         session_id=session_id,
