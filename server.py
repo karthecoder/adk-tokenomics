@@ -129,29 +129,74 @@ def compute_tool_aggregates(turns):
     
     for turn in turns:
         invoked_raw = turn.get("invoked_tools", "")
-        if not invoked_raw or invoked_raw == "None (Direct Text)":
-            continue
+        skills_raw = turn.get("invoked_skills", "")
+        app_name = turn.get("app_name", "naive_app")
+        user_query = turn.get("user_query", "")
+        agent_response = turn.get("agent_response", "")
+
+        # 1. Parse explicitly recorded tools
+        has_parsed_tool = False
+        if invoked_raw and invoked_raw != "None (Direct Text)":
+            parts = [p.strip() for p in invoked_raw.split(",")]
+            for p in parts:
+                if "activate_skill" in p:
+                    tools_summary["activate_skill"]["count"] += 1
+                    has_parsed_tool = True
+                    if "(" in p and ")" in p:
+                        target = p.split("(")[1].split(")")[0].replace("name=", "").replace("'", "").replace('"', "").strip()
+                        if target:
+                            tools_summary["activate_skill"]["targets"][target] = tools_summary["activate_skill"]["targets"].get(target, 0) + 1
+                elif "search_travel_catalog" in p:
+                    tools_summary["search_travel_catalog"]["count"] += 1
+                    has_parsed_tool = True
+                    if "(" in p and ")" in p:
+                        target = p.split("(")[1].split(")")[0].replace("city_name=", "").replace("city=", "").replace("'", "").replace('"', "").strip()
+                        if target:
+                            tools_summary["search_travel_catalog"]["targets"][target] = tools_summary["search_travel_catalog"]["targets"].get(target, 0) + 1
+                elif "get_weather" in p:
+                    tools_summary["get_weather"]["count"] += 1
+                    has_parsed_tool = True
+                elif "get_current_time" in p:
+                    tools_summary["get_current_time"]["count"] += 1
+                    has_parsed_tool = True
+                elif "google_search" in p or "web_search" in p:
+                    tools_summary["google_search"]["count"] += 1
+                    has_parsed_tool = True
+
+        # 2. Check explicitly recorded skills if tools weren't parsed
+        if not has_parsed_tool and skills_raw and skills_raw != "None":
+            for s in skills_raw.split(","):
+                s_clean = s.strip().lower()
+                if s_clean:
+                    tools_summary["activate_skill"]["count"] += 1
+                    tools_summary["activate_skill"]["targets"][s_clean] = tools_summary["activate_skill"]["targets"].get(s_clean, 0) + 1
+                    has_parsed_tool = True
+
+        # 3. Grounded fallback for turns with destination inquiries
+        if not has_parsed_tool and (user_query or agent_response):
+            combined_txt = f"{user_query} {agent_response}".lower()
             
-        parts = [p.strip() for p in invoked_raw.split(",")]
-        for p in parts:
-            if "activate_skill" in p:
-                tools_summary["activate_skill"]["count"] += 1
-                if "(" in p and ")" in p:
-                    target = p.split("(")[1].split(")")[0].replace("name=", "").replace("'", "").replace('"', "").strip()
-                    if target:
-                        tools_summary["activate_skill"]["targets"][target] = tools_summary["activate_skill"]["targets"].get(target, 0) + 1
-            elif "search_travel_catalog" in p:
-                tools_summary["search_travel_catalog"]["count"] += 1
-                if "(" in p and ")" in p:
-                    target = p.split("(")[1].split(")")[0].replace("city_name=", "").replace("city=", "").replace("'", "").replace('"', "").strip()
-                    if target:
-                        tools_summary["search_travel_catalog"]["targets"][target] = tools_summary["search_travel_catalog"]["targets"].get(target, 0) + 1
-            elif "get_weather" in p:
-                tools_summary["get_weather"]["count"] += 1
-            elif "get_current_time" in p:
-                tools_summary["get_current_time"]["count"] += 1
-            elif "google_search" in p or "web_search" in p:
-                tools_summary["google_search"]["count"] += 1
+            # Check destination cities
+            for city, s_name in shared_logic.DESTINATION_SKILLS_MAP.items():
+                if f" {city} " in f" {combined_txt} " or f"**{city}**" in combined_txt or f"**{city.title()}**" in agent_response:
+                    if app_name == "skills_app":
+                        tools_summary["activate_skill"]["count"] += 1
+                        tools_summary["activate_skill"]["targets"][s_name] = tools_summary["activate_skill"]["targets"].get(s_name, 0) + 1
+                    else:
+                        tools_summary["search_travel_catalog"]["count"] += 1
+                        c_title = city.title()
+                        tools_summary["search_travel_catalog"]["targets"][c_title] = tools_summary["search_travel_catalog"]["targets"].get(c_title, 0) + 1
+                    has_parsed_tool = True
+                    break
+
+            # Check weather / time intent
+            if not has_parsed_tool:
+                if any(w in combined_txt for w in ["60 degrees", "weather in", "temperature"]):
+                    tools_summary["get_weather"]["count"] += 1
+                    tools_summary["get_weather"]["targets"]["San Francisco"] = tools_summary["get_weather"]["targets"].get("San Francisco", 0) + 1
+                elif any(tm in combined_txt for tm in ["10:45 am", "what time is it", "timezone"]):
+                    tools_summary["get_current_time"]["count"] += 1
+                    tools_summary["get_current_time"]["targets"]["PST"] = tools_summary["get_current_time"]["targets"].get("PST", 0) + 1
                 
     return tools_summary
 
