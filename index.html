@@ -283,8 +283,8 @@
           <div class="kpi-icon-wrapper kpi-primary">⭐</div>
           <div class="kpi-content">
             <span class="kpi-label">Average Quality</span>
-            <h2 class="kpi-value" id="kpi-eval-avg-quality">4.86 / 5.0</h2>
-            <span class="kpi-trend" id="kpi-eval-quality-desc">5-dimension rubric avg</span>
+            <h2 class="kpi-value" id="kpi-eval-avg-quality">- / 5.0</h2>
+            <span class="kpi-trend" id="kpi-eval-quality-desc">No evaluations yet</span>
           </div>
         </div>
 
@@ -293,8 +293,8 @@
           <div class="kpi-icon-wrapper kpi-accent">🛠️</div>
           <div class="kpi-content">
             <span class="kpi-label">Tool Calling Match</span>
-            <h2 class="kpi-value" id="kpi-eval-tool-acc" style="color:#facc15;">5.0 / 5.0</h2>
-            <span class="kpi-trend" style="color:#34d399;">100% Parameter Accuracy</span>
+            <h2 class="kpi-value" id="kpi-eval-tool-acc" style="color:#facc15;">-</h2>
+            <span class="kpi-trend" id="kpi-eval-tool-desc" style="color:var(--color-text-muted);">No tools evaluated</span>
           </div>
         </div>
 
@@ -303,8 +303,8 @@
           <div class="kpi-icon-wrapper kpi-success">🎯</div>
           <div class="kpi-content">
             <span class="kpi-label">Skill Activation Match</span>
-            <h2 class="kpi-value" id="kpi-eval-skill-acc" style="color:#34d399;">100%</h2>
-            <span class="kpi-trend" style="color:#60a5fa;">40 Modular Skills Routed</span>
+            <h2 class="kpi-value" id="kpi-eval-skill-acc" style="color:#34d399;">-</h2>
+            <span class="kpi-trend" id="kpi-eval-skill-desc" style="color:var(--color-text-muted);">No skills evaluated</span>
           </div>
         </div>
 
@@ -313,8 +313,8 @@
           <div class="kpi-icon-wrapper kpi-purple">🏆</div>
           <div class="kpi-content">
             <span class="kpi-label">Top Quality Tier</span>
-            <h2 class="kpi-value" id="kpi-eval-top-model" style="font-size:1.15rem;">Claude Sonnet 5</h2>
-            <span class="kpi-trend" style="color:var(--color-success);">Score: 4.94 / 5.0</span>
+            <h2 class="kpi-value" id="kpi-eval-top-model" style="font-size:1.15rem;">-</h2>
+            <span class="kpi-trend" id="kpi-eval-top-desc" style="color:var(--color-text-muted);">Run benchmark to test</span>
           </div>
         </div>
 
@@ -323,8 +323,8 @@
           <div class="kpi-icon-wrapper kpi-primary">🔥</div>
           <div class="kpi-content">
             <span class="kpi-label">Best Value ROI</span>
-            <h2 class="kpi-value" id="kpi-eval-best-value" style="font-size:1.15rem;">Gemini 3.7 Flash</h2>
-            <span class="kpi-trend" style="color:var(--color-primary-light);">573.8 Score / $</span>
+            <h2 class="kpi-value" id="kpi-eval-best-value" style="font-size:1.15rem;">-</h2>
+            <span class="kpi-trend" id="kpi-eval-best-desc" style="color:var(--color-text-muted);">Run benchmark to test</span>
           </div>
         </div>
       </section>
@@ -411,44 +411,9 @@
             </thead>
             <tbody id="eval-leaderboard-table-body">
               <tr>
-                <td><strong>Gemini 3.7 Flash</strong></td>
-                <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ 4.86</span></td>
-                <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ 4.80</span></td>
-                <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ 4.70</span></td>
-                <td style="text-align:center;"><span class="badge badge-success">⭐ 5.00 (100%)</span></td>
-                <td style="text-align:center;"><span class="badge badge-success">🎯 100% Match</span></td>
-                <td style="text-align:right; font-family:monospace; color:var(--color-success);">$0.00847</td>
-                <td style="text-align:center;"><span class="badge badge-success" style="font-weight:700;">🔥 573.8 / $</span></td>
-              </tr>
-              <tr>
-                <td><strong>Claude Sonnet 5</strong></td>
-                <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ 4.94</span></td>
-                <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ 4.90</span></td>
-                <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ 4.90</span></td>
-                <td style="text-align:center;"><span class="badge badge-success">⭐ 5.00 (100%)</span></td>
-                <td style="text-align:center;"><span class="badge badge-success">🎯 100% Match</span></td>
-                <td style="text-align:right; font-family:monospace; color:var(--color-success);">$0.01130</td>
-                <td style="text-align:center;"><span class="badge badge-success" style="font-weight:700;">🔥 437.2 / $</span></td>
-              </tr>
-              <tr>
-                <td><strong>Gemini 3.6 Flash</strong></td>
-                <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ 4.70</span></td>
-                <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ 4.70</span></td>
-                <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ 4.60</span></td>
-                <td style="text-align:center;"><span class="badge badge-success">⭐ 4.80 (96%)</span></td>
-                <td style="text-align:center;"><span class="badge badge-success">🎯 96% Match</span></td>
-                <td style="text-align:right; font-family:monospace; color:var(--color-success);">$0.00847</td>
-                <td style="text-align:center;"><span class="badge badge-success" style="font-weight:700;">🔥 554.9 / $</span></td>
-              </tr>
-              <tr>
-                <td><strong>Gemini 3.5 Flash</strong></td>
-                <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ 4.62</span></td>
-                <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ 4.60</span></td>
-                <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ 4.40</span></td>
-                <td style="text-align:center;"><span class="badge badge-success">⭐ 4.80 (96%)</span></td>
-                <td style="text-align:center;"><span class="badge badge-success">🎯 96% Match</span></td>
-                <td style="text-align:right; font-family:monospace; color:var(--color-success);">$0.00847</td>
-                <td style="text-align:center;"><span class="badge badge-success" style="font-weight:700;">🔥 545.5 / $</span></td>
+                <td colspan="8" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
+                  No benchmark runs recorded yet. Click "🚀 Run Batch Quality Benchmark" above to evaluate models!
+                </td>
               </tr>
             </tbody>
           </table>

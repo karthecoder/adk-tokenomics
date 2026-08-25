@@ -671,6 +671,9 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 metrics_path = os.path.join('agent-nexus', 'live_metrics.json')
                 with open(metrics_path, 'w') as f:
                     json.dump(default_metrics, f, indent=2)
+
+                # Clear eval cache
+                save_eval_cache({"scores": {}, "batch_results": []})
                 
                 dashboard_path = os.path.join('agent-nexus', 'live_dashboard.md')
                 default_dashboard = """# Agent Nexus: Live Playground Travel Planner Dashboard
