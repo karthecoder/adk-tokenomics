@@ -402,6 +402,9 @@ def prune_thoughts_from_history(callback_context, **kwargs):
         print(f"[DEBUG] Pruning thoughts failed: {e}", flush=True)
 
 
+# Pending tool turn accumulator dictionary
+_PENDING_TOOL_TURNS = {}
+
 def after_model_cb(callback_context, llm_response):
     # Prune thoughts from history to prevent context compounding
     prune_thoughts_from_history(callback_context)
@@ -591,7 +594,55 @@ def after_model_cb(callback_context, llm_response):
     except Exception as e:
         print(f"[DEBUG] Failed to get session id: {e}", flush=True)
 
-    # Log turn to BigQuery
+    # UNIFIED SINGLE TURN LOGGING:
+    # If this model step is an intermediate tool-invocation step without final text, buffer tokens and defer write.
+    if not agent_response.strip():
+        if session_id not in _PENDING_TOOL_TURNS:
+            _PENDING_TOOL_TURNS[session_id] = {
+                "prompt_tokens": 0,
+                "cached_tokens": 0,
+                "output_tokens": 0,
+                "thinking_tokens": 0,
+                "cost": 0.0,
+                "tools": [],
+                "skills": [],
+                "user_query": user_query
+            }
+        buf = _PENDING_TOOL_TURNS[session_id]
+        buf["prompt_tokens"] = max(buf["prompt_tokens"], prompt_cnt)
+        buf["cached_tokens"] = max(buf["cached_tokens"], cached_cnt)
+        buf["output_tokens"] += output_cnt
+        buf["thinking_tokens"] += thinking_cnt
+        buf["cost"] += cost
+        for t in invoked_tools_list:
+            if t not in buf["tools"]:
+                buf["tools"].append(t)
+        for s in invoked_skills_list:
+            if s not in buf["skills"]:
+                buf["skills"].append(s)
+        if user_query:
+            buf["user_query"] = user_query
+        print(f"[TURN ACCUMULATOR] Buffered intermediate tool step for session {session_id} (tools={buf['tools']})", flush=True)
+        return None
+
+    # Merge buffered tool step tokens into the final response turn
+    pending = _PENDING_TOOL_TURNS.pop(session_id, None)
+    if pending:
+        prompt_cnt = max(prompt_cnt, pending["prompt_tokens"])
+        cached_cnt = max(cached_cnt, pending["cached_tokens"])
+        output_cnt = output_cnt + pending["output_tokens"]
+        thinking_cnt = thinking_cnt + pending["thinking_tokens"]
+        cost = cost + pending["cost"]
+        for t in pending["tools"]:
+            if t not in invoked_tools_list:
+                invoked_tools_list.append(t)
+        for s in pending["skills"]:
+            if s not in invoked_skills_list:
+                invoked_skills_list.append(s)
+        if not user_query and pending.get("user_query"):
+            user_query = pending["user_query"]
+
+    # Log unified single turn to BigQuery
     write_metrics_to_bq(
         session_id=session_id,
         app_name=app_key,

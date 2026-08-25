@@ -244,6 +244,7 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 where_conds.append("timestamp > @clear_cutoff")
                 params.append(bigquery.ScalarQueryParameter("clear_cutoff", "TIMESTAMP", cutoff))
                 
+            where_conds.append("(agent_response IS NOT NULL AND TRIM(agent_response) != '')")
             where_clause = "WHERE " + " AND ".join(where_conds) if where_conds else ""
                 
             # Query Aggregates
