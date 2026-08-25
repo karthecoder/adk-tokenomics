@@ -277,44 +277,54 @@
     <div id="tab-pane-eval" class="main-tab-pane">
       
       <!-- Top Eval KPI Cards Row -->
-      <section class="kpi-row" style="margin-bottom: 1.5rem;">
+      <section class="kpi-row" style="margin-bottom: 1.5rem; display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
         <!-- Card 1: Average Quality Score -->
         <div class="kpi-card glass-card">
           <div class="kpi-icon-wrapper kpi-primary">⭐</div>
           <div class="kpi-content">
-            <span class="kpi-label">Average Quality Score</span>
-            <h2 class="kpi-value" id="kpi-eval-avg-quality">4.7 / 5.0</h2>
-            <span class="kpi-trend" id="kpi-eval-quality-desc">Multi-dimensional rubric average</span>
+            <span class="kpi-label">Average Quality</span>
+            <h2 class="kpi-value" id="kpi-eval-avg-quality">4.86 / 5.0</h2>
+            <span class="kpi-trend" id="kpi-eval-quality-desc">5-dimension rubric avg</span>
           </div>
         </div>
 
-        <!-- Card 2: Highest Quality Model -->
+        <!-- Card 2: Tool Invocation Match -->
         <div class="kpi-card glass-card">
-          <div class="kpi-icon-wrapper kpi-success">🏆</div>
+          <div class="kpi-icon-wrapper kpi-accent">🛠️</div>
           <div class="kpi-content">
-            <span class="kpi-label">Top Quality Model</span>
-            <h2 class="kpi-value" id="kpi-eval-top-model" style="font-size:1.3rem;">Claude Sonnet 5</h2>
-            <span class="kpi-trend" style="color:var(--color-success);">Score: 4.90 / 5.0</span>
+            <span class="kpi-label">Tool Calling Match</span>
+            <h2 class="kpi-value" id="kpi-eval-tool-acc" style="color:#facc15;">5.0 / 5.0</h2>
+            <span class="kpi-trend" style="color:#34d399;">100% Parameter Accuracy</span>
           </div>
         </div>
 
-        <!-- Card 3: Highest Value Model (Quality per Dollar) -->
+        <!-- Card 3: Skill Routing Precision -->
         <div class="kpi-card glass-card">
-          <div class="kpi-icon-wrapper kpi-purple">🔥</div>
+          <div class="kpi-icon-wrapper kpi-success">🎯</div>
           <div class="kpi-content">
-            <span class="kpi-label">Best Value Efficiency</span>
-            <h2 class="kpi-value" id="kpi-eval-best-value" style="font-size:1.3rem;">Gemini 3.7 Flash</h2>
-            <span class="kpi-trend" style="color:var(--color-primary-light);">Highest Quality / $ Ratio</span>
+            <span class="kpi-label">Skill Activation Match</span>
+            <h2 class="kpi-value" id="kpi-eval-skill-acc" style="color:#34d399;">100%</h2>
+            <span class="kpi-trend" style="color:#60a5fa;">40 Modular Skills Routed</span>
           </div>
         </div>
 
-        <!-- Card 4: Total Graded Turns -->
+        <!-- Card 4: Highest Quality Model -->
         <div class="kpi-card glass-card">
-          <div class="kpi-icon-wrapper kpi-accent">📋</div>
+          <div class="kpi-icon-wrapper kpi-purple">🏆</div>
           <div class="kpi-content">
-            <span class="kpi-label">Evaluated Sessions & Turns</span>
-            <h2 class="kpi-value" id="kpi-eval-total-graded">0</h2>
-            <span class="kpi-trend">Cached LLM-as-a-judge scorecards</span>
+            <span class="kpi-label">Top Quality Tier</span>
+            <h2 class="kpi-value" id="kpi-eval-top-model" style="font-size:1.15rem;">Claude Sonnet 5</h2>
+            <span class="kpi-trend" style="color:var(--color-success);">Score: 4.94 / 5.0</span>
+          </div>
+        </div>
+
+        <!-- Card 5: Best Value Model -->
+        <div class="kpi-card glass-card">
+          <div class="kpi-icon-wrapper kpi-primary">🔥</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Best Value ROI</span>
+            <h2 class="kpi-value" id="kpi-eval-best-value" style="font-size:1.15rem;">Gemini 3.7 Flash</h2>
+            <span class="kpi-trend" style="color:var(--color-primary-light);">573.8 Score / $</span>
           </div>
         </div>
       </section>
@@ -373,6 +383,77 @@
             </button>
           </div>
         </div>
+
+      </div>
+
+      <!-- Mid Card: Model Evaluation Benchmark Leaderboard (Quality, Tools & Skills Comparison) -->
+      <div class="glass-card table-card" style="margin-bottom: 1.5rem;">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h3 class="panel-title" style="color:var(--color-primary-light);">🏆 Model Quality, Tool Calling & Skill Routing Leaderboard</h3>
+            <p class="panel-subtitle">Comprehensive side-by-side benchmark comparison across models, tool accuracy, skill match rate, and cost</p>
+          </div>
+          <span class="badge badge-success" style="font-size:0.8rem;">Standard Benchmark Suite</span>
+        </div>
+        <div class="table-container">
+          <table class="premium-table">
+            <thead>
+              <tr>
+                <th>Model Name</th>
+                <th style="text-align:center;">Composite Quality</th>
+                <th style="text-align:center;">Factual Accuracy</th>
+                <th style="text-align:center;">Reasoning Depth</th>
+                <th style="text-align:center;">Tool Match</th>
+                <th style="text-align:center;">Skill Match</th>
+                <th style="text-align:right;">Avg Cost / Turn</th>
+                <th style="text-align:center;">Quality / $ ROI</th>
+              </tr>
+            </thead>
+            <tbody id="eval-leaderboard-table-body">
+              <tr>
+                <td><strong>Gemini 3.7 Flash</strong></td>
+                <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ 4.86</span></td>
+                <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ 4.80</span></td>
+                <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ 4.70</span></td>
+                <td style="text-align:center;"><span class="badge badge-success">⭐ 5.00 (100%)</span></td>
+                <td style="text-align:center;"><span class="badge badge-success">🎯 100% Match</span></td>
+                <td style="text-align:right; font-family:monospace; color:var(--color-success);">$0.00847</td>
+                <td style="text-align:center;"><span class="badge badge-success" style="font-weight:700;">🔥 573.8 / $</span></td>
+              </tr>
+              <tr>
+                <td><strong>Claude Sonnet 5</strong></td>
+                <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ 4.94</span></td>
+                <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ 4.90</span></td>
+                <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ 4.90</span></td>
+                <td style="text-align:center;"><span class="badge badge-success">⭐ 5.00 (100%)</span></td>
+                <td style="text-align:center;"><span class="badge badge-success">🎯 100% Match</span></td>
+                <td style="text-align:right; font-family:monospace; color:var(--color-success);">$0.01130</td>
+                <td style="text-align:center;"><span class="badge badge-success" style="font-weight:700;">🔥 437.2 / $</span></td>
+              </tr>
+              <tr>
+                <td><strong>Gemini 3.6 Flash</strong></td>
+                <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ 4.70</span></td>
+                <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ 4.70</span></td>
+                <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ 4.60</span></td>
+                <td style="text-align:center;"><span class="badge badge-success">⭐ 4.80 (96%)</span></td>
+                <td style="text-align:center;"><span class="badge badge-success">🎯 96% Match</span></td>
+                <td style="text-align:right; font-family:monospace; color:var(--color-success);">$0.00847</td>
+                <td style="text-align:center;"><span class="badge badge-success" style="font-weight:700;">🔥 554.9 / $</span></td>
+              </tr>
+              <tr>
+                <td><strong>Gemini 3.5 Flash</strong></td>
+                <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ 4.62</span></td>
+                <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ 4.60</span></td>
+                <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ 4.40</span></td>
+                <td style="text-align:center;"><span class="badge badge-success">⭐ 4.80 (96%)</span></td>
+                <td style="text-align:center;"><span class="badge badge-success">🎯 96% Match</span></td>
+                <td style="text-align:right; font-family:monospace; color:var(--color-success);">$0.00847</td>
+                <td style="text-align:center;"><span class="badge badge-success" style="font-weight:700;">🔥 545.5 / $</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       </div>
 
