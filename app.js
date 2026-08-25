@@ -281,10 +281,77 @@ document.addEventListener('DOMContentLoaded', () => {
         updateLineChart(turns);
         updateBarChart(simulations, metrics);
         updateKpiCards(metrics);
+        renderSessionToolsTable(data.tool_counts);
       })
       .catch(err => {
         console.warn('Sync server poll warning:', err.message);
       });
+  }
+
+  function renderSessionToolsTable(toolCounts) {
+    const tableBody = document.getElementById('session-tools-table-body');
+    const badgeTotal = document.getElementById('session-tools-total-badge');
+    if (!tableBody) return;
+
+    if (!toolCounts || typeof toolCounts !== 'object') {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="4" style="text-align: center; color: var(--color-text-muted); padding: 1.5rem;">
+            No tool invocations recorded in this session yet.
+          </td>
+        </tr>
+      `;
+      if (badgeTotal) {
+        badgeTotal.textContent = '0 Tool Invocations';
+        badgeTotal.className = 'badge badge-primary';
+      }
+      return;
+    }
+
+    const toolEntries = Object.values(toolCounts);
+    let totalInvocations = 0;
+    let html = '';
+
+    toolEntries.forEach(t => {
+      totalInvocations += (t.count || 0);
+      const isCalled = t.count > 0;
+      
+      let targetsHtml = '';
+      if (t.targets && Object.keys(t.targets).length > 0) {
+        const targetBadges = Object.entries(t.targets).map(([tgt, cnt]) => {
+          return `<span class="badge badge-primary" style="font-size:0.75rem; margin-right:4px; margin-bottom:2px;">${escapeHtml(tgt)} (${cnt}x)</span>`;
+        }).join(' ');
+        targetsHtml = targetBadges;
+      } else if (isCalled) {
+        targetsHtml = `<span style="color:var(--color-text-muted); font-size:0.8rem;">Standard execution</span>`;
+      } else {
+        targetsHtml = `<span style="color:var(--color-text-muted); font-size:0.8rem;">—</span>`;
+      }
+
+      html += `
+        <tr>
+          <td>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span style="font-size:1.1rem;">${t.icon || '🛠️'}</span>
+              <strong style="font-family:monospace; font-size:0.85rem; color:${isCalled ? '#60a5fa' : 'var(--color-text)'};">${escapeHtml(t.name || '')}</strong>
+            </div>
+          </td>
+          <td><span class="badge badge-secondary" style="font-size:0.75rem;">${escapeHtml(t.label || '')}</span></td>
+          <td style="text-align:center;">
+            <span class="badge ${isCalled ? 'badge-success' : 'badge-secondary'}" style="font-weight:700; font-size:0.8rem;">
+              ${t.count} ${t.count === 1 ? 'call' : 'calls'}
+            </span>
+          </td>
+          <td>${targetsHtml}</td>
+        </tr>
+      `;
+    });
+
+    tableBody.innerHTML = html;
+    if (badgeTotal) {
+      badgeTotal.textContent = `${totalInvocations} Tool ${totalInvocations === 1 ? 'Invocation' : 'Invocations'}`;
+      badgeTotal.className = totalInvocations > 0 ? 'badge badge-success' : 'badge badge-primary';
+    }
   }
   
   function updateKpiCards(metrics) {
@@ -526,6 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateKpiCards(defaultZeroMetrics);
       updateLineChart([]);
       updateBarChart({}, defaultZeroMetrics);
+      renderSessionToolsTable(null);
 
       fetch('/api/clear-metrics', { method: 'POST' })
         .then(() => {

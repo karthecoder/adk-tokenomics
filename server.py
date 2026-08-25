@@ -88,6 +88,73 @@ PRICING_MODELS = {
     }
 }
 
+def compute_tool_aggregates(turns):
+    tools_summary = {
+        "activate_skill": {
+            "name": "activate_skill(name)",
+            "label": "Modular Skill Loader",
+            "icon": "⚡",
+            "count": 0,
+            "targets": {}
+        },
+        "search_travel_catalog": {
+            "name": "search_travel_catalog(city)",
+            "label": "Central Destination Catalog",
+            "icon": "📖",
+            "count": 0,
+            "targets": {}
+        },
+        "get_weather": {
+            "name": "get_weather(city)",
+            "label": "Atmospheric Conditions",
+            "icon": "🌤️",
+            "count": 0,
+            "targets": {}
+        },
+        "get_current_time": {
+            "name": "get_current_time(city)",
+            "label": "Timezone Lookup",
+            "icon": "⏰",
+            "count": 0,
+            "targets": {}
+        },
+        "google_search": {
+            "name": "google_search(query)",
+            "label": "Web Information Retrieval",
+            "icon": "🌐",
+            "count": 0,
+            "targets": {}
+        }
+    }
+    
+    for turn in turns:
+        invoked_raw = turn.get("invoked_tools", "")
+        if not invoked_raw or invoked_raw == "None (Direct Text)":
+            continue
+            
+        parts = [p.strip() for p in invoked_raw.split(",")]
+        for p in parts:
+            if "activate_skill" in p:
+                tools_summary["activate_skill"]["count"] += 1
+                if "(" in p and ")" in p:
+                    target = p.split("(")[1].split(")")[0].replace("name=", "").replace("'", "").replace('"', "").strip()
+                    if target:
+                        tools_summary["activate_skill"]["targets"][target] = tools_summary["activate_skill"]["targets"].get(target, 0) + 1
+            elif "search_travel_catalog" in p:
+                tools_summary["search_travel_catalog"]["count"] += 1
+                if "(" in p and ")" in p:
+                    target = p.split("(")[1].split(")")[0].replace("city_name=", "").replace("city=", "").replace("'", "").replace('"', "").strip()
+                    if target:
+                        tools_summary["search_travel_catalog"]["targets"][target] = tools_summary["search_travel_catalog"]["targets"].get(target, 0) + 1
+            elif "get_weather" in p:
+                tools_summary["get_weather"]["count"] += 1
+            elif "get_current_time" in p:
+                tools_summary["get_current_time"]["count"] += 1
+            elif "google_search" in p or "web_search" in p:
+                tools_summary["google_search"]["count"] += 1
+                
+    return tools_summary
+
 class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
     def fetch_metrics_from_bq(self, session_id="global"):
         from google.cloud import bigquery
@@ -236,7 +303,7 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                     "invoked_skills": str(getattr(row, "invoked_skills", "") or "")
                 })
                 
-            # Compute Simulations
+                # Compute Simulations
             simulations = {}
             for model_name, rates in PRICING_MODELS.items():
                 simulated_cost = (
@@ -249,7 +316,8 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             res_payload = {
                 "metrics": metrics,
                 "turns": turns,
-                "simulations": simulations
+                "simulations": simulations,
+                "tool_counts": compute_tool_aggregates(turns)
             }
             if not hasattr(self, "_metrics_cache"):
                 AgentNexusHandler._metrics_cache = {}
@@ -299,7 +367,8 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
         return {
             "metrics": metrics,
             "turns": [],
-            "simulations": simulations
+            "simulations": simulations,
+            "tool_counts": compute_tool_aggregates([])
         }
 
     def fetch_sessions_from_bq(self):

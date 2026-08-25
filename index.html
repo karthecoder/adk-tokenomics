@@ -240,6 +240,38 @@
               <span class="slider"></span>
             </label>
           </div>
+
+          <!-- Session Tool & Skill Invocation Ledger Card -->
+          <div class="glass-card table-card" style="margin-top: 1.5rem;">
+            <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h3 class="panel-title" style="color:var(--color-accent); display:flex; align-items:center; gap:0.5rem;">
+                  <span>🛠️</span> Active Session Tool & Skill Invocations
+                </h3>
+                <p class="panel-subtitle">Frequency count and argument targets executed during this session</p>
+              </div>
+              <span id="session-tools-total-badge" class="badge badge-primary" style="font-size:0.8rem;">0 Tool Invocations</span>
+            </div>
+            <div class="table-container">
+              <table class="premium-table">
+                <thead>
+                  <tr>
+                    <th>Tool Function</th>
+                    <th>Category</th>
+                    <th style="text-align:center;">Invocations</th>
+                    <th>Parameters & Loaded Destinations</th>
+                  </tr>
+                </thead>
+                <tbody id="session-tools-table-body">
+                  <tr>
+                    <td colspan="4" style="text-align: center; color: var(--color-text-muted); padding: 1.5rem;">
+                      No tool invocations recorded in this session yet.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <!-- Right Column (50%): Visual Charts -->
