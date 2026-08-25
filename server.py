@@ -504,28 +504,62 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
 
     def update_env_file(self, key, value):
-        env_path = '.env'
-        if not os.path.exists(env_path):
-            env_path = os.path.join('agent-nexus', '.env')
-        
         os.environ[key] = str(value)
         
-        lines = []
-        key_found = False
-        if os.path.exists(env_path):
-            with open(env_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith(f"{key}="):
-                        lines.append(f"{key}={value}\n")
-                        key_found = True
-                    else:
-                        lines.append(line)
-        if not key_found:
-            lines.append(f"\n{key}={value}\n")
-            
-        with open(env_path, 'w') as f:
-            f.writelines(lines)
-        print(f"[ENV] Updated {key}={value} in {env_path}", flush=True)
+        # Write to active tracking files for instant inter-process sync
+        if key == "DEMO_MODEL_NAME":
+            for fname in ["active_model.txt", "agent-nexus/active_model.txt"]:
+                full_p = os.path.join(ROOT_DIR, fname)
+                try:
+                    with open(full_p, "w") as f:
+                        f.write(str(value))
+                    print(f"[ACTIVE MODEL] Wrote {value} to {full_p}", flush=True)
+                except Exception as e:
+                    print(f"[ACTIVE MODEL ERROR] {e}", flush=True)
+        elif key == "THINKING_BUDGET":
+            for fname in ["active_thinking.txt", "agent-nexus/active_thinking.txt"]:
+                full_p = os.path.join(ROOT_DIR, fname)
+                try:
+                    with open(full_p, "w") as f:
+                        f.write(str(value))
+                except Exception:
+                    pass
+        elif key == "MAX_OUTPUT_TOKENS":
+            for fname in ["active_maxtokens.txt", "agent-nexus/active_maxtokens.txt"]:
+                full_p = os.path.join(ROOT_DIR, fname)
+                try:
+                    with open(full_p, "w") as f:
+                        f.write(str(value))
+                except Exception:
+                    pass
+
+        env_paths = [
+            os.path.join(ROOT_DIR, '.env'),
+            os.path.join(ROOT_DIR, 'agent-nexus', '.env'),
+            '.env',
+            'agent-nexus/.env'
+        ]
+        
+        for env_path in set(env_paths):
+            lines = []
+            key_found = False
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(f"{key}="):
+                            lines.append(f"{key}={value}\n")
+                            key_found = True
+                        else:
+                            lines.append(line)
+            if not key_found:
+                lines.append(f"\n{key}={value}\n")
+                
+            try:
+                with open(env_path, 'w') as f:
+                    f.writelines(lines)
+                print(f"[ENV] Updated {key}={value} in {env_path}", flush=True)
+            except Exception as e:
+                print(f"[ENV ERROR] Failed to write {env_path}: {e}", flush=True)
 
     def do_POST(self):
         parsed_url = urlparse(self.path)
@@ -670,6 +704,8 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 model_name = payload.get('model_name')
                 if model_name:
                     self.update_env_file("DEMO_MODEL_NAME", model_name)
+                    if "claude" in model_name.lower() or "sonnet" in model_name.lower():
+                        self.update_env_file("GOOGLE_CLOUD_LOCATION", "global")
                     
                     cfg = shared_logic.load_models_config()
                     matched = next((m for m in cfg.get("models", []) if m.get("id") == model_name or m.get("name") == model_name), None)

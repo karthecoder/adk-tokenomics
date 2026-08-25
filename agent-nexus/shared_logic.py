@@ -19,11 +19,51 @@ except Exception:
 os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 
+ACTIVE_MODEL_PATHS = [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "active_model.txt"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "active_model.txt"),
+    "active_model.txt",
+    "agent-nexus/active_model.txt"
+]
+
 def get_model_name():
-    load_dotenv(ENV_PATH, override=True)
+    for p in ACTIVE_MODEL_PATHS:
+        if os.path.exists(p):
+            try:
+                with open(p, "r") as f:
+                    val = f.read().strip()
+                    if val:
+                        return val
+            except Exception:
+                pass
+    for p in [
+        ENV_PATH,
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        ".env",
+        "agent-nexus/.env"
+    ]:
+        if os.path.exists(p):
+            load_dotenv(p, override=True)
     return os.environ.get("DEMO_MODEL_NAME", "publishers/google/models/gemini-3.5-flash")
 
 def get_thinking_budget():
+    for p in [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "active_thinking.txt"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "active_thinking.txt"),
+        "active_thinking.txt",
+        "agent-nexus/active_thinking.txt"
+    ]:
+        if os.path.exists(p):
+            try:
+                with open(p, "r") as f:
+                    val_str = f.read().strip()
+                    if val_str:
+                        try:
+                            return int(val_str)
+                        except ValueError:
+                            return val_str.lower()
+            except Exception:
+                pass
     load_dotenv(ENV_PATH, override=True)
     val = os.environ.get("THINKING_BUDGET", "0")
     val_str = str(val).strip()

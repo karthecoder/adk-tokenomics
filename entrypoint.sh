@@ -5,7 +5,7 @@ echo "=== Booting Token Control Tower Container ==="
 
 # 1. Start ADK Web Engine in subshell on port 8082
 echo ">>> Starting ADK Agent Engine on port 8082..."
-(cd /app/agent-nexus && adk web . --host 0.0.0.0 --port 8082 --allow_origins '*') &
+(cd /app/agent-nexus && adk web . --host 0.0.0.0 --port 8082 --allow_origins '*' --reload_agents) &
 
 # 2. Wait up to 30 seconds for ADK Web engine on 8082 to be ready
 echo ">>> Waiting for ADK Web Engine to start on port 8082..."
