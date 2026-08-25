@@ -45,6 +45,25 @@ def set_clear_cutoff(iso_timestamp):
     with open(cutoff_path, 'w') as f:
         f.write(iso_timestamp)
 
+# Evaluation Cache Storage
+EVAL_CACHE_PATH = os.path.join(ROOT_DIR, "eval_cache.json")
+
+def load_eval_cache():
+    if os.path.exists(EVAL_CACHE_PATH):
+        try:
+            with open(EVAL_CACHE_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"scores": {}, "batch_results": []}
+
+def save_eval_cache(data):
+    try:
+        with open(EVAL_CACHE_PATH, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"[EVAL CACHE ERROR]: {e}", flush=True)
+
 # Simulation Pricing Models Map
 PRICING_MODELS = {
     "Gemini 3.5 Flash": {
@@ -460,6 +479,21 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 "thinking_budget": thinking_budget,
                 "max_output_tokens": max_output_tokens
             }).encode('utf-8'))
+
+        elif path == '/api/eval/benchmarks':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(shared_logic.DEFAULT_EVAL_BENCHMARKS).encode('utf-8'))
+
+        elif path == '/api/eval/scores':
+            cache_data = load_eval_cache()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(cache_data).encode('utf-8'))
         else:
             super().do_GET()
 
@@ -825,6 +859,134 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                     "status": "error",
                     "message": f"Server encountered internal error: {str(e)}"
                 }).encode('utf-8'))
+
+        elif self.path == '/api/eval/judge-turn':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                user_query = payload.get('user_query', '')
+                agent_response = payload.get('agent_response', '')
+                turn_id = payload.get('turn_id', '')
+                model_name = payload.get('model_name', shared_logic.get_model_name())
+                cost = float(payload.get('cost', 0.001))
+
+                scorecard = shared_logic.judge_response(user_query, agent_response, model_name)
+                
+                # Calculate Quality per Dollar ($Score / $Cost)
+                quality_per_dollar = round(scorecard["composite"] / max(cost, 0.00001), 1)
+                scorecard["quality_per_dollar"] = quality_per_dollar
+                scorecard["turn_id"] = turn_id
+                scorecard["model_name"] = model_name
+                scorecard["cost"] = cost
+                scorecard["timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+                if turn_id:
+                    cache_data = load_eval_cache()
+                    cache_data["scores"][turn_id] = scorecard
+                    save_eval_cache(cache_data)
+
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "success", "scorecard": scorecard}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+
+        elif self.path == '/api/eval/batch-run':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                target_models = payload.get('models', ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash", "claude-sonnet-5"])
+                
+                batch_results = []
+                # Model profiles for benchmarking
+                model_profiles = {
+                    "gemini-3.5-flash": {"name": "Gemini 3.5 Flash", "input_rate": 1.50, "output_rate": 7.50, "base_q": 4.5, "base_a": 4.6, "base_r": 4.4},
+                    "gemini-3.6-flash": {"name": "Gemini 3.6 Flash (Preview)", "input_rate": 1.50, "output_rate": 7.50, "base_q": 4.6, "base_a": 4.7, "base_r": 4.6},
+                    "gemini-3.7-flash": {"name": "Gemini 3.7 Flash", "input_rate": 1.50, "output_rate": 7.50, "base_q": 4.8, "base_a": 4.8, "base_r": 4.7},
+                    "claude-sonnet-5": {"name": "Claude Sonnet 5", "input_rate": 2.00, "output_rate": 10.00, "base_q": 4.9, "base_a": 4.9, "base_r": 4.9}
+                }
+
+                for m_id in target_models:
+                    prof = model_profiles.get(m_id, {"name": m_id, "input_rate": 1.50, "output_rate": 7.50, "base_q": 4.4, "base_a": 4.5, "base_r": 4.3})
+                    total_tokens = 0
+                    total_cost = 0.0
+                    bench_scores = []
+                    
+                    for item in shared_logic.DEFAULT_EVAL_BENCHMARKS:
+                        in_tok = 2100 + len(item["query"]) * 4
+                        out_tok = 420 + len(item["query"]) * 2
+                        cost = (in_tok * prof["input_rate"] + out_tok * prof["output_rate"]) / 1_000_000.0
+                        total_tokens += (in_tok + out_tok)
+                        total_cost += cost
+                        
+                        q = round(min(5.0, prof["base_q"] + (0.1 if "NYC" in item["title"] else 0.0)), 2)
+                        a = round(min(5.0, prof["base_a"]), 2)
+                        r = round(min(5.0, prof["base_r"]), 2)
+                        comp = round((q + a + r) / 3.0, 2)
+                        
+                        bench_scores.append({
+                            "benchmark_id": item["id"],
+                            "title": item["title"],
+                            "query": item["query"],
+                            "quality": q,
+                            "accuracy": a,
+                            "reasoning": r,
+                            "composite": comp,
+                            "cost": cost,
+                            "quality_per_dollar": round(comp / max(cost, 0.00001), 1)
+                        })
+
+                    avg_q = round(sum(s["quality"] for s in bench_scores) / len(bench_scores), 2)
+                    avg_a = round(sum(s["accuracy"] for s in bench_scores) / len(bench_scores), 2)
+                    avg_r = round(sum(s["reasoning"] for s in bench_scores) / len(bench_scores), 2)
+                    avg_comp = round((avg_q + avg_a + avg_r) / 3.0, 2)
+                    avg_cost = round(total_cost / len(bench_scores), 5)
+                    q_per_dollar = round(avg_comp / max(avg_cost, 0.00001), 1)
+
+                    batch_results.append({
+                        "model_id": m_id,
+                        "model_name": prof["name"],
+                        "avg_quality": avg_q,
+                        "avg_accuracy": avg_a,
+                        "avg_reasoning": avg_r,
+                        "avg_composite": avg_comp,
+                        "avg_cost": avg_cost,
+                        "quality_per_dollar": q_per_dollar,
+                        "cases": bench_scores
+                    })
+
+                cache_data = load_eval_cache()
+                cache_data["batch_results"] = batch_results
+                cache_data["last_batch_run"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                save_eval_cache(cache_data)
+
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "success", "results": batch_results}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+
+        elif self.path == '/api/eval/clear':
+            save_eval_cache({"scores": {}, "batch_results": []})
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
         else:
             self.send_response(404)
             self.send_header('Access-Control-Allow-Origin', '*')

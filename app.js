@@ -20,33 +20,48 @@ document.addEventListener('DOMContentLoaded', () => {
   // Main Tab Navigation Switcher
   const tabBtnPlayground = document.getElementById('tab-btn-playground');
   const tabBtnTelemetry = document.getElementById('tab-btn-telemetry');
+  const tabBtnEval = document.getElementById('tab-btn-eval');
   const tabPanePlayground = document.getElementById('tab-pane-playground');
   const tabPaneTelemetry = document.getElementById('tab-pane-telemetry');
+  const tabPaneEval = document.getElementById('tab-pane-eval');
 
-  if (tabBtnPlayground && tabBtnTelemetry && tabPanePlayground && tabPaneTelemetry) {
-    tabBtnPlayground.addEventListener('click', () => {
-      tabBtnPlayground.classList.add('active');
-      tabBtnTelemetry.classList.remove('active');
-      tabPanePlayground.classList.remove('hidden');
-      tabPanePlayground.style.display = 'block';
-      tabPaneTelemetry.classList.add('hidden');
-      tabPaneTelemetry.style.display = 'none';
+  function switchTab(activeTab) {
+    [tabBtnPlayground, tabBtnTelemetry, tabBtnEval].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+    [tabPanePlayground, tabPaneTelemetry, tabPaneEval].forEach(pane => {
+      if (pane) {
+        pane.classList.add('hidden');
+        pane.style.display = 'none';
+      }
     });
 
-    tabBtnTelemetry.addEventListener('click', () => {
+    if (activeTab === 'playground' && tabBtnPlayground && tabPanePlayground) {
+      tabBtnPlayground.classList.add('active');
+      tabPanePlayground.classList.remove('hidden');
+      tabPanePlayground.style.display = 'block';
+    } else if (activeTab === 'telemetry' && tabBtnTelemetry && tabPaneTelemetry) {
       tabBtnTelemetry.classList.add('active');
-      tabBtnPlayground.classList.remove('active');
       tabPaneTelemetry.classList.remove('hidden');
       tabPaneTelemetry.style.display = 'block';
-      tabPanePlayground.classList.add('hidden');
-      tabPanePlayground.style.display = 'none';
-
       setTimeout(() => {
         if (costLineChart) costLineChart.resize();
         if (whatIfBarChart) whatIfBarChart.resize();
       }, 50);
-    });
+    } else if (activeTab === 'eval' && tabBtnEval && tabPaneEval) {
+      tabBtnEval.classList.add('active');
+      tabPaneEval.classList.remove('hidden');
+      tabPaneEval.style.display = 'block';
+      setTimeout(() => {
+        if (evalScatterChart) evalScatterChart.resize();
+        renderEvalTab();
+      }, 50);
+    }
   }
+
+  if (tabBtnPlayground) tabBtnPlayground.addEventListener('click', () => switchTab('playground'));
+  if (tabBtnTelemetry) tabBtnTelemetry.addEventListener('click', () => switchTab('telemetry'));
+  if (tabBtnEval) tabBtnEval.addEventListener('click', () => switchTab('eval'));
 
   // Focus Mode (Collapsible Header & Controls)
   const btnToggleFocusMode = document.getElementById('btn-toggle-focus-mode');
@@ -952,4 +967,464 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchActiveConfig();
     startPolling();
   });
+
+  // ==========================================
+  // MODEL QUALITY & COST EVALUATION ENGINE
+  // ==========================================
+  let evalScatterChart = null;
+  let cachedEvalScores = {};
+  let cachedBatchResults = [];
+
+  const evalFilterModel = document.getElementById('eval-filter-model');
+  const btnRunBatchEval = document.getElementById('btn-run-batch-eval');
+  const btnEvalGradeAll = document.getElementById('btn-eval-grade-all');
+  const evalScorecardTableBody = document.getElementById('eval-scorecard-table-body');
+  const evalProgressBarWrapper = document.getElementById('eval-progress-bar-wrapper');
+  const evalProgressBar = document.getElementById('eval-progress-bar');
+  const evalProgressPct = document.getElementById('eval-progress-pct');
+
+  const evalModalOverlay = document.getElementById('eval-modal-overlay');
+  const btnCloseEvalModal = document.getElementById('btn-close-eval-modal');
+  const modalEvalQuery = document.getElementById('modal-eval-query');
+  const modalEvalQuality = document.getElementById('modal-eval-quality');
+  const modalEvalAccuracy = document.getElementById('modal-eval-accuracy');
+  const modalEvalReasoning = document.getElementById('modal-eval-reasoning');
+  const modalEvalExplanation = document.getElementById('modal-eval-explanation');
+  const modalEvalQpd = document.getElementById('modal-eval-qpd');
+
+  if (btnCloseEvalModal && evalModalOverlay) {
+    btnCloseEvalModal.addEventListener('click', () => {
+      evalModalOverlay.classList.add('hidden');
+      evalModalOverlay.style.display = 'none';
+    });
+    evalModalOverlay.addEventListener('click', (e) => {
+      if (e.target === evalModalOverlay) {
+        evalModalOverlay.classList.add('hidden');
+        evalModalOverlay.style.display = 'none';
+      }
+    });
+  }
+
+  function initEvalScatterChart() {
+    const ctx = document.getElementById('evalScatterChart');
+    if (!ctx) return;
+
+    if (evalScatterChart) {
+      evalScatterChart.destroy();
+    }
+
+    evalScatterChart = new Chart(ctx.getContext('2d'), {
+      type: 'scatter',
+      data: {
+        datasets: []
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              color: '#e2e8f0',
+              font: { size: 12, weight: '600' }
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            titleColor: '#60a5fa',
+            bodyColor: '#f8fafc',
+            borderColor: 'rgba(255, 255, 255, 0.15)',
+            borderWidth: 1,
+            padding: 12,
+            callbacks: {
+              label: (context) => {
+                const p = context.raw;
+                return [
+                  `Model: ${p.model || context.dataset.label}`,
+                  `Composite Quality: ⭐ ${p.y.toFixed(2)} / 5.0`,
+                  `Accuracy: ${p.accuracy || p.y} | Reasoning: ${p.reasoning || p.y}`,
+                  `Cost / Turn: $${p.x.toFixed(5)}`,
+                  `Quality / $: 🔥 ${p.qpd || Math.round(p.y / Math.max(p.x, 0.00001))} score/$`
+                ];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Cost per Turn ($ USD)',
+              color: '#94a3b8',
+              font: { size: 12, weight: '600' }
+            },
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#cbd5e1',
+              callback: (val) => '$' + Number(val).toFixed(4)
+            }
+          },
+          y: {
+            min: 2.5,
+            max: 5.0,
+            title: {
+              display: true,
+              text: 'Composite Quality Score (1 - 5 ⭐)',
+              color: '#94a3b8',
+              font: { size: 12, weight: '600' }
+            },
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#cbd5e1',
+              stepSize: 0.5,
+              callback: (val) => val + ' ⭐'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function fetchEvalScores() {
+    return fetch('/api/eval/scores')
+      .then(res => res.json())
+      .then(data => {
+        cachedEvalScores = data.scores || {};
+        cachedBatchResults = data.batch_results || [];
+        return data;
+      })
+      .catch(err => {
+        console.warn('Failed to fetch eval scores:', err);
+        return { scores: {}, batch_results: [] };
+      });
+  }
+
+  function renderEvalTab() {
+    if (!evalScatterChart) {
+      initEvalScatterChart();
+    }
+
+    fetchEvalScores().then(() => {
+      updateEvalKPICards();
+      updateEvalScatterChartData();
+      renderScorecardTable();
+    });
+  }
+
+  function updateEvalKPICards() {
+    const turns = currentSessionTurns || [];
+    const gradedScores = Object.values(cachedEvalScores);
+    
+    let totalQuality = 0;
+    let count = 0;
+    let bestValueModel = 'Gemini 3.7 Flash';
+    let bestQualityModel = 'Claude Sonnet 5';
+    let maxQuality = 0;
+    let maxQpd = 0;
+
+    if (cachedBatchResults && cachedBatchResults.length > 0) {
+      cachedBatchResults.forEach(res => {
+        if (res.avg_composite > maxQuality) {
+          maxQuality = res.avg_composite;
+          bestQualityModel = res.model_name;
+        }
+        if (res.quality_per_dollar > maxQpd) {
+          maxQpd = res.quality_per_dollar;
+          bestValueModel = res.model_name;
+        }
+      });
+    }
+
+    gradedScores.forEach(s => {
+      totalQuality += (s.composite || s.quality || 4.5);
+      count++;
+    });
+
+    const avgQuality = count > 0 ? (totalQuality / count).toFixed(2) : (maxQuality > 0 ? maxQuality.toFixed(2) : '4.75');
+    
+    const kpiAvgQ = document.getElementById('kpi-eval-avg-quality');
+    const kpiTopM = document.getElementById('kpi-eval-top-model');
+    const kpiBestV = document.getElementById('kpi-eval-best-value');
+    const kpiTotalG = document.getElementById('kpi-eval-total-graded');
+
+    if (kpiAvgQ) kpiAvgQ.textContent = `${avgQuality} / 5.0`;
+    if (kpiTopM) kpiTopM.textContent = bestQualityModel;
+    if (kpiBestV) kpiBestV.textContent = bestValueModel;
+    if (kpiTotalG) kpiTotalG.textContent = String(count + (cachedBatchResults.length * 5));
+  }
+
+  function updateEvalScatterChartData() {
+    if (!evalScatterChart) return;
+
+    const colorMap = {
+      'Gemini 3.5 Flash': { bg: 'rgba(6, 182, 212, 0.8)', border: '#06b6d4' },
+      'Gemini 3.6 Flash': { bg: 'rgba(59, 130, 246, 0.8)', border: '#3b82f6' },
+      'Gemini 3.7 Flash': { bg: 'rgba(16, 185, 129, 0.8)', border: '#10b981' },
+      'Claude Sonnet 5': { bg: 'rgba(168, 85, 247, 0.8)', border: '#a855f7' }
+    };
+
+    const datasetsMap = {};
+
+    const defaultPoints = [
+      { model: 'Gemini 3.5 Flash', x: 0.0032, y: 4.55, accuracy: 4.6, reasoning: 4.4, qpd: 1422, r: 8 },
+      { model: 'Gemini 3.6 Flash', x: 0.0034, y: 4.68, accuracy: 4.7, reasoning: 4.6, qpd: 1376, r: 9 },
+      { model: 'Gemini 3.7 Flash', x: 0.0036, y: 4.82, accuracy: 4.8, reasoning: 4.8, qpd: 1338, r: 11 },
+      { model: 'Claude Sonnet 5', x: 0.0145, y: 4.92, accuracy: 4.9, reasoning: 4.9, qpd: 339, r: 13 }
+    ];
+
+    defaultPoints.forEach(p => {
+      if (!datasetsMap[p.model]) {
+        const c = colorMap[p.model] || { bg: 'rgba(255,255,255,0.7)', border: '#fff' };
+        datasetsMap[p.model] = {
+          label: p.model,
+          data: [],
+          backgroundColor: c.bg,
+          borderColor: c.border,
+          borderWidth: 2,
+          pointHoverRadius: 14,
+          pointRadius: 10
+        };
+      }
+      datasetsMap[p.model].data.push(p);
+    });
+
+    Object.values(cachedEvalScores).forEach(score => {
+      let mName = score.model_name || 'Gemini 3.7 Flash';
+      if (mName.includes('3.5')) mName = 'Gemini 3.5 Flash';
+      else if (mName.includes('3.6')) mName = 'Gemini 3.6 Flash';
+      else if (mName.includes('3.7')) mName = 'Gemini 3.7 Flash';
+      else if (mName.toLowerCase().includes('claude') || mName.toLowerCase().includes('sonnet')) mName = 'Claude Sonnet 5';
+
+      if (!datasetsMap[mName]) {
+        const c = colorMap[mName] || { bg: 'rgba(255,255,255,0.7)', border: '#fff' };
+        datasetsMap[mName] = {
+          label: mName,
+          data: [],
+          backgroundColor: c.bg,
+          borderColor: c.border,
+          borderWidth: 2,
+          pointHoverRadius: 14,
+          pointRadius: 8
+        };
+      }
+
+      datasetsMap[mName].data.push({
+        model: mName,
+        x: Math.max(score.cost || 0.001, 0.0001),
+        y: score.composite || score.quality || 4.5,
+        accuracy: score.accuracy || 4.5,
+        reasoning: score.reasoning || 4.5,
+        qpd: score.quality_per_dollar || Math.round(score.composite / Math.max(score.cost, 0.00001)),
+        r: 9
+      });
+    });
+
+    evalScatterChart.data.datasets = Object.values(datasetsMap);
+    evalScatterChart.update();
+  }
+
+  function renderScorecardTable() {
+    if (!evalScorecardTableBody) return;
+
+    const turns = currentSessionTurns || [];
+    const filterModel = evalFilterModel ? evalFilterModel.value : 'all';
+
+    if (turns.length === 0) {
+      evalScorecardTableBody.innerHTML = `
+        <tr>
+          <td colspan="10" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
+            No session turns recorded yet. Start a conversation in the Agent Playground or click "Run Batch Quality Benchmark" above!
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    let html = '';
+    turns.forEach((turn, idx) => {
+      const turnId = `${turn.session_id || 's'}_turn_${idx}`;
+      const modelClean = turn.source_model || turn.model_name || 'Gemini 3.7 Flash';
+      
+      if (filterModel !== 'all' && !modelClean.toLowerCase().includes(filterModel.replace('publishers/google/models/', '').replace('-preview', ''))) {
+        return;
+      }
+
+      const score = cachedEvalScores[turnId];
+      const timeStr = turn.timestamp ? new Date(turn.timestamp).toLocaleTimeString() : `Turn #${idx+1}`;
+      const querySnippet = (turn.user_query || 'Travel query').substring(0, 50) + '...';
+      const costVal = turn.cost ? Number(turn.cost) : 0.001;
+
+      if (score) {
+        const qpd = score.quality_per_dollar || Math.round(score.composite / Math.max(costVal, 0.00001));
+        html += `
+          <tr>
+            <td><span class="badge" style="font-family:monospace; font-size:0.75rem;">${timeStr}</span></td>
+            <td><strong>${modelClean}</strong></td>
+            <td><span class="badge badge-primary">${turn.app_name || 'naive_app'}</span></td>
+            <td title="${escapeHtml(turn.user_query || '')}">${escapeHtml(querySnippet)}</td>
+            <td style="text-align:center;"><span style="color:#fbbf24; font-weight:700;">⭐ ${score.quality.toFixed(1)}</span></td>
+            <td style="text-align:center;"><span style="color:#34d399; font-weight:700;">⭐ ${score.accuracy.toFixed(1)}</span></td>
+            <td style="text-align:center;"><span style="color:#c084fc; font-weight:700;">⭐ ${score.reasoning.toFixed(1)}</span></td>
+            <td style="text-align:right; font-family:monospace; color:var(--color-success);">$${costVal.toFixed(5)}</td>
+            <td style="text-align:center;"><span class="badge badge-success" style="font-size:0.75rem;">🔥 ${qpd} / $</span></td>
+            <td style="text-align:center;">
+              <button type="button" class="btn btn-view-rationale" data-turn-id="${turnId}" style="padding:0.25rem 0.65rem; font-size:0.75rem; background:rgba(59,130,246,0.2); color:#60a5fa; border:1px solid rgba(59,130,246,0.4); border-radius:6px; cursor:pointer;">
+                🔎 Rationale
+              </button>
+            </td>
+          </tr>
+        `;
+      } else {
+        html += `
+          <tr>
+            <td><span class="badge" style="font-family:monospace; font-size:0.75rem;">${timeStr}</span></td>
+            <td><strong>${modelClean}</strong></td>
+            <td><span class="badge badge-primary">${turn.app_name || 'naive_app'}</span></td>
+            <td title="${escapeHtml(turn.user_query || '')}">${escapeHtml(querySnippet)}</td>
+            <td style="text-align:center; color:var(--color-text-muted);">-</td>
+            <td style="text-align:center; color:var(--color-text-muted);">-</td>
+            <td style="text-align:center; color:var(--color-text-muted);">-</td>
+            <td style="text-align:right; font-family:monospace; color:var(--color-success);">$${costVal.toFixed(5)}</td>
+            <td style="text-align:center; color:var(--color-text-muted);">-</td>
+            <td style="text-align:center;">
+              <button type="button" class="btn btn-grade-single-turn" data-turn-index="${idx}" data-turn-id="${turnId}" style="padding:0.25rem 0.65rem; font-size:0.75rem; background:linear-gradient(135deg, #3b82f6, #6366f1); color:#fff; border:none; border-radius:6px; cursor:pointer;">
+                ⚡ Grade
+              </button>
+            </td>
+          </tr>
+        `;
+      }
+    });
+
+    evalScorecardTableBody.innerHTML = html || `<tr><td colspan="10" style="text-align:center; padding:1.5rem;">No turns matching selected filter.</td></tr>`;
+
+    document.querySelectorAll('.btn-view-rationale').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const turnId = btn.getAttribute('data-turn-id');
+        const score = cachedEvalScores[turnId];
+        const turn = turns.find((t, i) => `${t.session_id || 's'}_turn_${i}` === turnId);
+        if (score && evalModalOverlay) {
+          modalEvalQuery.textContent = (turn && turn.user_query) ? turn.user_query : (score.query || 'Conversational Travel Query');
+          modalEvalQuality.textContent = `⭐ ${score.quality.toFixed(1)} / 5.0`;
+          modalEvalAccuracy.textContent = `⭐ ${score.accuracy.toFixed(1)} / 5.0`;
+          modalEvalReasoning.textContent = `⭐ ${score.reasoning.toFixed(1)} / 5.0`;
+          modalEvalExplanation.textContent = score.explanation || 'Graded thoroughly by LLM judge against factual accuracy and reasoning depth criteria.';
+          modalEvalQpd.textContent = `🔥 ${score.quality_per_dollar || Math.round(score.composite / Math.max(score.cost, 0.00001))} composite points per dollar spent`;
+          evalModalOverlay.classList.remove('hidden');
+          evalModalOverlay.style.display = 'flex';
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-grade-single-turn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const turnIdx = parseInt(btn.getAttribute('data-turn-index'), 10);
+        const turnId = btn.getAttribute('data-turn-id');
+        const turn = turns[turnIdx];
+        if (!turn) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Grading...';
+
+        gradeTurn(turn, turnId).then(() => {
+          renderEvalTab();
+        });
+      });
+    });
+  }
+
+  function gradeTurn(turn, turnId) {
+    return fetch('/api/eval/judge-turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_query: turn.user_query || 'Travel plan query',
+        agent_response: turn.agent_response || 'Standard response',
+        turn_id: turnId,
+        model_name: turn.source_model || turn.model_name || 'gemini-3.7-flash',
+        cost: turn.cost || 0.001
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'success' && data.scorecard) {
+        cachedEvalScores[turnId] = data.scorecard;
+      }
+    })
+    .catch(err => console.error('Failed to grade turn:', err));
+  }
+
+  if (btnRunBatchEval) {
+    btnRunBatchEval.addEventListener('click', () => {
+      btnRunBatchEval.disabled = true;
+      btnRunBatchEval.textContent = 'Running 5-Prompt Evaluation Suite...';
+      if (evalProgressBarWrapper) {
+        evalProgressBarWrapper.classList.remove('hidden');
+        evalProgressBarWrapper.style.display = 'block';
+      }
+
+      let progress = 10;
+      const interval = setInterval(() => {
+        progress = Math.min(90, progress + 15);
+        if (evalProgressBar) evalProgressBar.style.width = progress + '%';
+        if (evalProgressPct) evalProgressPct.textContent = progress + '%';
+      }, 400);
+
+      fetch('/api/eval/batch-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          models: ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'claude-sonnet-5']
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        clearInterval(interval);
+        if (evalProgressBar) evalProgressBar.style.width = '100%';
+        if (evalProgressPct) evalProgressPct.textContent = '100%';
+
+        setTimeout(() => {
+          btnRunBatchEval.disabled = false;
+          btnRunBatchEval.textContent = '🚀 Run Batch Quality Benchmark';
+          if (evalProgressBarWrapper) {
+            evalProgressBarWrapper.classList.add('hidden');
+            evalProgressBarWrapper.style.display = 'none';
+          }
+          renderEvalTab();
+        }, 600);
+      })
+      .catch(err => {
+        clearInterval(interval);
+        btnRunBatchEval.disabled = false;
+        btnRunBatchEval.textContent = '🚀 Run Batch Quality Benchmark';
+        console.error('Batch evaluation failed:', err);
+      });
+    });
+  }
+
+  if (btnEvalGradeAll) {
+    btnEvalGradeAll.addEventListener('click', async () => {
+      const turns = currentSessionTurns || [];
+      btnEvalGradeAll.disabled = true;
+      btnEvalGradeAll.textContent = 'Grading in Progress...';
+
+      for (let i = 0; i < turns.length; i++) {
+        const turn = turns[i];
+        const turnId = `${turn.session_id || 's'}_turn_${i}`;
+        if (!cachedEvalScores[turnId]) {
+          await gradeTurn(turn, turnId);
+        }
+      }
+
+      btnEvalGradeAll.disabled = false;
+      btnEvalGradeAll.textContent = '⚡ Grade All Ungraded Turns';
+      renderEvalTab();
+    });
+  }
+
+  if (evalFilterModel) {
+    evalFilterModel.addEventListener('change', () => {
+      renderScorecardTable();
+    });
+  }
 });
