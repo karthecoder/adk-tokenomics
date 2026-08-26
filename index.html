@@ -303,73 +303,291 @@
 
       </div>
 
+      <!-- Available Tools & Registered Capabilities Card (Full Width) -->
+      <div class="glass-card table-card" style="margin-top: 1.5rem;">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <h3 class="panel-title" style="color:#60a5fa; display:flex; align-items:center; gap:0.5rem;">
+              <span>🧰</span> Available Tools & Registered Agent Capabilities
+            </h3>
+            <p class="panel-subtitle">Registered Python tool functions and modular destination skill packages accessible to ADK agents</p>
+          </div>
+          <div style="display:flex; gap:0.5rem;">
+            <span class="badge badge-primary" style="font-size:0.8rem;">5 Registered Tools</span>
+            <span class="badge badge-success" style="font-size:0.8rem;">40 Destination Skills</span>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="premium-table">
+            <thead>
+              <tr>
+                <th>Function Signature</th>
+                <th>Tool Category</th>
+                <th>Description & Schema</th>
+                <th>Invocation Mechanism</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span>⚡</span>
+                    <strong style="font-family:monospace; color:#60a5fa; font-size:0.85rem;">activate_skill(name: str)</strong>
+                  </div>
+                </td>
+                <td><span class="badge badge-primary" style="font-size:0.75rem;">Modular Skill Loader</span></td>
+                <td>
+                  Dynamically discovers and loads isolated XML destination skill packages on-demand, keeping base prompt tokens under 2.5K.
+                </td>
+                <td><span style="font-family:monospace; font-size:0.8rem; color:var(--color-text-muted);">skills/&lt;city&gt;-travel/SKILL.md</span></td>
+                <td><span class="badge badge-success" style="font-size:0.75rem;">Active (40 Cities)</span></td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span>📖</span>
+                    <strong style="font-family:monospace; color:#34d399; font-size:0.85rem;">search_travel_catalog(city: str)</strong>
+                  </div>
+                </td>
+                <td><span class="badge badge-secondary" style="font-size:0.75rem;">Destination Catalog</span></td>
+                <td>
+                  Searches centralized destination guidance, hotel tiers, local etiquette, and emergency contacts.
+                </td>
+                <td><span style="font-family:monospace; font-size:0.8rem; color:var(--color-text-muted);">Monolithic & Caching Apps</span></td>
+                <td><span class="badge badge-success" style="font-size:0.75rem;">Active</span></td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span>🌤️</span>
+                    <strong style="font-family:monospace; color:#facc15; font-size:0.85rem;">get_weather(query: str)</strong>
+                  </div>
+                </td>
+                <td><span class="badge badge-secondary" style="font-size:0.75rem;">Atmospheric Data</span></td>
+                <td>
+                  Simulates or fetches real-time temperature, precipitation, and packing advisories for destination cities.
+                </td>
+                <td><span style="font-family:monospace; font-size:0.8rem; color:var(--color-text-muted);">All Agents</span></td>
+                <td><span class="badge badge-success" style="font-size:0.75rem;">Active</span></td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span>⏰</span>
+                    <strong style="font-family:monospace; color:#c084fc; font-size:0.85rem;">get_current_time(query: str)</strong>
+                  </div>
+                </td>
+                <td><span class="badge badge-secondary" style="font-size:0.75rem;">Timezone Lookup</span></td>
+                <td>
+                  Retrieves current local time, daylight saving status, and operating hour windows.
+                </td>
+                <td><span style="font-family:monospace; font-size:0.8rem; color:var(--color-text-muted);">All Agents</span></td>
+                <td><span class="badge badge-success" style="font-size:0.75rem;">Active</span></td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span>🌐</span>
+                    <strong style="font-family:monospace; color:#38bdf8; font-size:0.85rem;">google_search(query: str)</strong>
+                  </div>
+                </td>
+                <td><span class="badge badge-secondary" style="font-size:0.75rem;">Web Information Retrieval</span></td>
+                <td>
+                  Grounds responses with real-time web search for current events, ticket prices, and live travel updates.
+                </td>
+                <td><span style="font-family:monospace; font-size:0.8rem; color:var(--color-text-muted);">Vertex GenAI Grounding</span></td>
+                <td><span class="badge badge-success" style="font-size:0.75rem;">Active</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 40 Supported Modular City Skills Container -->
+        <div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+          <div style="font-size:0.85rem; font-weight:600; color:var(--color-text-muted); margin-bottom:0.6rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>🏙️ 40 Registered Modular Destination Skills (Loaded dynamically via <code style="color:#60a5fa;">activate_skill</code>)</span>
+            <span style="font-size:0.75rem; color:#34d399;">Ready for On-Demand Activation</span>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:0.4rem; font-size:0.75rem;">
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">paris-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">tokyo-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">london-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">rome-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">new-york-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">singapore-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">sydney-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">barcelona-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">dubai-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">bangkok-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">cairo-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">cape-town-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">rio-de-janeiro-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">vancouver-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">amsterdam-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">prague-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">vienna-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">istanbul-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">seoul-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">hong-kong-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">munich-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">san-francisco-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">chicago-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">boston-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">seattle-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">miami-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">los-angeles-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">honolulu-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">toronto-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">montreal-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">stockholm-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">oslo-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">copenhagen-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">zurich-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">geneva-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">athens-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">dublin-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">edinburgh-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">madrid-travel</span>
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2);">lisbon-travel</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Session Turn History Table (Full Width with Invoked Tools & Skills) -->
+      <div class="glass-card table-card" style="margin-top: 1.5rem; margin-bottom: 2rem;">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <h3 class="panel-title" style="color:var(--color-primary-light); display:flex; align-items:center; gap:0.5rem;">
+              <span>📋</span> Live Session Turn History & Token Ledger
+            </h3>
+            <p class="panel-subtitle">Comprehensive turn-by-turn log including token metrics, cost, and tools executed per turn</p>
+          </div>
+          <span id="session-turns-count-badge" class="badge badge-primary" style="font-size:0.8rem;">0 Turns</span>
+        </div>
+        <div class="table-container" style="max-height: 480px; overflow-y: auto;">
+          <table class="premium-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Time</th>
+                <th>Scenario App</th>
+                <th>User Query</th>
+                <th>Response Snippet</th>
+                <th>Tokens (In / Cached / Out / Think)</th>
+                <th>Cost ($)</th>
+                <th>🛠️ Invoked Tools</th>
+                <th>⚡ Invoked Skills</th>
+              </tr>
+            </thead>
+            <tbody id="session-turns-history-table-body">
+              <tr>
+                <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">
+                  No turns recorded in this session yet. Chat with the agent in the Playground to see live turns!
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
 
-    <!-- TAB PANE 3: Model Quality & Cost Evaluation -->
-    <div id="tab-pane-eval" class="main-tab-pane">
+    <!-- TAB PANE 3: Dedicated On-Demand Model Quality & Cost Evaluation -->
+    <div id="tab-pane-eval" class="main-tab-pane" style="display:none;">
       
-      <!-- Top Eval KPI Cards Row -->
-      <section class="kpi-row" style="margin-bottom: 1.5rem; display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
-        <!-- Card 1: Average Quality Score -->
-        <div class="kpi-card glass-card">
-          <div class="kpi-icon-wrapper kpi-primary">⭐</div>
-          <div class="kpi-content">
-            <span class="kpi-label">Average Quality</span>
-            <h2 class="kpi-value" id="kpi-eval-avg-quality">- / 5.0</h2>
-            <span class="kpi-trend" id="kpi-eval-quality-desc">No evaluations yet</span>
+      <!-- Top Eval Header & On-Demand Benchmark Runner Panel -->
+      <div class="glass-card panel-card" style="margin-bottom: 1.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+          <div>
+            <h2 style="font-size:1.4rem; font-weight:700; color:var(--color-primary-light); display:flex; align-items:center; gap:0.5rem; margin-bottom:0.35rem;">
+              <span>✨</span> On-Demand Model Quality & Architecture Eval Suite
+            </h2>
+            <p style="color:var(--color-text-muted); font-size:0.9rem; max-width:850px; line-height:1.5;">
+              Run standardized multi-turn benchmark scenarios on-demand across the 4 ADK agent architectures (Naive Monolithic, Context Caching, History Compaction, and Modular Skills). Evaluates tool selection correctness, factual grounding, token footprint, latency, and cost efficiency without interrupting playground chatting.
+            </p>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <button type="button" id="btn-run-batch-eval" class="btn btn-premium-primary" style="padding:0.75rem 1.5rem; font-size:0.95rem; font-weight:700; display:flex; align-items:center; gap:0.5rem;">
+              <span>🚀</span> Run Golden Benchmark Suite
+            </button>
           </div>
         </div>
 
-        <!-- Card 2: Tool Invocation Match -->
+        <!-- Benchmark Execution Progress Bar (Shown during run) -->
+        <div id="eval-progress-bar-wrapper" class="hidden" style="display:none; margin-top:1.25rem; padding-top:1rem; border-top:1px solid rgba(255,255,255,0.08);">
+          <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--color-text-muted); margin-bottom:0.4rem;">
+            <span id="eval-progress-status">Evaluating scenarios across architectures...</span>
+            <span id="eval-progress-pct" style="font-weight:700; color:#60a5fa;">0%</span>
+          </div>
+          <div style="width:100%; height:8px; background:rgba(255,255,255,0.1); border-radius:6px; overflow:hidden;">
+            <div id="eval-progress-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #3b82f6, #10b981); transition:width 0.3s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Eval KPI Cards Row -->
+      <section class="kpi-row" style="margin-bottom: 1.5rem; display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        <!-- Card 1: Tool Selection Match -->
         <div class="kpi-card glass-card">
           <div class="kpi-icon-wrapper kpi-accent">🛠️</div>
           <div class="kpi-content">
-            <span class="kpi-label">Tool Calling Match</span>
+            <span class="kpi-label">Tool Selection Precision</span>
             <h2 class="kpi-value" id="kpi-eval-tool-acc" style="color:#facc15;">-</h2>
-            <span class="kpi-trend" id="kpi-eval-tool-desc" style="color:var(--color-text-muted);">No tools evaluated</span>
+            <span class="kpi-trend" id="kpi-eval-tool-desc">Click Run Benchmark to test</span>
           </div>
         </div>
 
-        <!-- Card 3: Skill Routing Precision -->
+        <!-- Card 2: Skill Routing Accuracy -->
         <div class="kpi-card glass-card">
           <div class="kpi-icon-wrapper kpi-success">🎯</div>
           <div class="kpi-content">
             <span class="kpi-label">Skill Activation Match</span>
             <h2 class="kpi-value" id="kpi-eval-skill-acc" style="color:#34d399;">-</h2>
-            <span class="kpi-trend" id="kpi-eval-skill-desc" style="color:var(--color-text-muted);">No skills evaluated</span>
+            <span class="kpi-trend" id="kpi-eval-skill-desc">Click Run Benchmark to test</span>
           </div>
         </div>
 
-        <!-- Card 4: Highest Quality Model -->
+        <!-- Card 3: Composite Quality -->
+        <div class="kpi-card glass-card">
+          <div class="kpi-icon-wrapper kpi-primary">⭐</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Factual Accuracy Score</span>
+            <h2 class="kpi-value" id="kpi-eval-avg-quality">- / 5.0</h2>
+            <span class="kpi-trend" id="kpi-eval-quality-desc">LLM-as-a-Judge grading</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Top Quality Architecture -->
         <div class="kpi-card glass-card">
           <div class="kpi-icon-wrapper kpi-purple">🏆</div>
           <div class="kpi-content">
-            <span class="kpi-label">Top Quality Tier</span>
-            <h2 class="kpi-value" id="kpi-eval-top-model" style="font-size:1.15rem;">-</h2>
-            <span class="kpi-trend" id="kpi-eval-top-desc" style="color:var(--color-text-muted);">Run benchmark to test</span>
+            <span class="kpi-label">Peak Cost Reduction</span>
+            <h2 class="kpi-value" id="kpi-eval-top-model" style="font-size:1.3rem; color:#c084fc;">-</h2>
+            <span class="kpi-trend" id="kpi-eval-top-desc">Against monolithic baseline</span>
           </div>
         </div>
 
-        <!-- Card 5: Best Value Model -->
+        <!-- Card 5: Best Value Architecture -->
         <div class="kpi-card glass-card">
           <div class="kpi-icon-wrapper kpi-primary">🔥</div>
           <div class="kpi-content">
-            <span class="kpi-label">Best Value ROI</span>
-            <h2 class="kpi-value" id="kpi-eval-best-value" style="font-size:1.15rem;">-</h2>
-            <span class="kpi-trend" id="kpi-eval-best-desc" style="color:var(--color-text-muted);">Run benchmark to test</span>
+            <span class="kpi-label">Best Efficiency ROI</span>
+            <h2 class="kpi-value" id="kpi-eval-best-value" style="font-size:1.15rem; color:#60a5fa;">-</h2>
+            <span class="kpi-trend" id="kpi-eval-best-desc">Quality / Token Cost ratio</span>
           </div>
         </div>
       </section>
 
-      <!-- Main Eval Layout: Quality vs Cost Scatter Chart & Batch Benchmark Card -->
+      <!-- Main Eval Layout: Quality vs Cost Pareto Frontier & Architecture Comparison -->
       <div class="analytics-grid" style="margin-bottom: 1.5rem;">
         
         <!-- Left Panel: Interactive Quality vs Cost Frontier Scatter Chart -->
         <div class="glass-card chart-card" style="grid-column: span 8;">
           <div class="panel-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
-              <h3 class="panel-title" style="color:var(--color-primary-light);">Quality vs. Cost Frontier Analysis</h3>
-              <p class="panel-subtitle">Y-Axis: Composite Quality Score (1-5) | X-Axis: Cost per Turn ($) | Bubble Size: Token Count</p>
+              <h3 class="panel-title" style="color:var(--color-primary-light);">Cost-Quality Pareto Frontier Analysis</h3>
+              <p class="panel-subtitle">Y-Axis: Composite Quality Score (1-5) | X-Axis: Cost per Query ($) | Point Size: Token Footprint</p>
             </div>
             <div style="display:flex; gap:0.5rem;">
               <span class="badge" style="background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); font-size:0.75rem;">Pareto Frontier ⚡</span>
@@ -380,71 +598,59 @@
           </div>
         </div>
 
-        <!-- Right Panel: Batch Benchmark Evaluation Runner -->
+        <!-- Right Panel: Golden Benchmark Test Scenarios Card -->
         <div class="glass-card panel-card" style="grid-column: span 4; display:flex; flex-direction:column; justify-content:space-between;">
           <div>
             <div class="panel-header">
-              <h3 class="panel-title" style="color:var(--color-accent);">Batch Benchmark Evaluation</h3>
-              <p class="panel-subtitle">Run standardized 5-prompt travel planner test suite across model tiers</p>
+              <h3 class="panel-title" style="color:var(--color-accent);">Golden Benchmark Test Suite</h3>
+              <p class="panel-subtitle">5 multi-turn travel planning test scenarios</p>
             </div>
-            <div style="font-size:0.85rem; color:var(--color-text-muted); line-height:1.5; margin-bottom:1rem;">
-              Evaluates:
-              <ul style="padding-left:1.2rem; margin-top:0.35rem; color:var(--color-text);">
-                <li>Paris 3-Day Budget Itinerary</li>
-                <li>Tokyo Norms & Emergency Numbers</li>
-                <li>Rome vs. Barcelona Comparison</li>
-                <li>Zurich Quiet Hours & Transport</li>
-                <li>New York 48-Hour Cultural Schedule</li>
+            <div style="font-size:0.85rem; color:var(--color-text-muted); line-height:1.6; margin-bottom:1rem;">
+              Standard test scenarios executed:
+              <ul style="padding-left:1.2rem; margin-top:0.4rem; color:var(--color-text);">
+                <li style="margin-bottom:0.3rem;"><strong>Paris 3-Day:</strong> Museum itinerary & quiet hour norms</li>
+                <li style="margin-bottom:0.3rem;"><strong>Tokyo Norms:</strong> Emergency numbers & hotel options</li>
+                <li style="margin-bottom:0.3rem;"><strong>Munich Oktoberfest:</strong> Tipping rules & quiet hours</li>
+                <li style="margin-bottom:0.3rem;"><strong>Zurich & Geneva:</strong> Cross-city Swiss travel guide</li>
+                <li style="margin-bottom:0.3rem;"><strong>Real-Time Weather & Time:</strong> Weather & timezone tools</li>
               </ul>
             </div>
           </div>
 
-          <div>
-            <div id="eval-progress-bar-wrapper" class="hidden" style="display:none; margin-bottom:0.75rem;">
-              <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--color-text-muted); margin-bottom:0.25rem;">
-                <span>Evaluating test cases...</span>
-                <span id="eval-progress-pct">0%</span>
-              </div>
-              <div style="width:100%; height:6px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden;">
-                <div id="eval-progress-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #3b82f6, #10b981); transition:width 0.3s ease;"></div>
-              </div>
-            </div>
-
-            <button type="button" id="btn-run-batch-eval" class="btn btn-premium-primary" style="width:100%; justify-content:center; padding:0.75rem; font-weight:700;">
-              🚀 Run Batch Quality Benchmark
-            </button>
+          <div style="padding:0.75rem; background:rgba(255,255,255,0.03); border-radius:6px; border:1px solid rgba(255,255,255,0.06); font-size:0.8rem; color:var(--color-text-muted);">
+            💡 <em>Evaluates tool calling accuracy, modular skill loading precision, and token cost savings across all 4 architectures.</em>
           </div>
         </div>
 
       </div>
 
-      <!-- Mid Card: Model Evaluation Benchmark Leaderboard (Quality, Tools & Skills Comparison) -->
+      <!-- Mid Card: Architecture & Model Evaluation Leaderboard -->
       <div class="glass-card table-card" style="margin-bottom: 1.5rem;">
         <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <h3 class="panel-title" style="color:var(--color-primary-light);">🏆 Model Quality, Tool Calling & Skill Routing Leaderboard</h3>
-            <p class="panel-subtitle">Comprehensive side-by-side benchmark comparison across models, tool accuracy, skill match rate, and cost</p>
+            <h3 class="panel-title" style="color:var(--color-primary-light);">🏆 Architecture Quality, Tool Precision & Cost Leaderboard</h3>
+            <p class="panel-subtitle">Comprehensive side-by-side benchmark comparison across the 4 ADK agent optimization architectures</p>
           </div>
-          <span class="badge badge-success" style="font-size:0.8rem;">Standard Benchmark Suite</span>
+          <span class="badge badge-success" style="font-size:0.8rem;">On-Demand Benchmark</span>
         </div>
         <div class="table-container">
           <table class="premium-table">
             <thead>
               <tr>
-                <th>Model Name</th>
-                <th style="text-align:center;">Composite Quality</th>
+                <th>Agent Architecture</th>
+                <th style="text-align:center;">Tool Match Rate</th>
+                <th style="text-align:center;">Skill Match Rate</th>
                 <th style="text-align:center;">Factual Accuracy</th>
-                <th style="text-align:center;">Reasoning Depth</th>
-                <th style="text-align:center;">Tool Match</th>
-                <th style="text-align:center;">Skill Match</th>
-                <th style="text-align:right;">Avg Cost / Turn</th>
+                <th style="text-align:center;">Composite Quality</th>
+                <th style="text-align:right;">Avg Cost / Query</th>
+                <th style="text-align:center;">Cost Savings</th>
                 <th style="text-align:center;">Quality / $ ROI</th>
               </tr>
             </thead>
             <tbody id="eval-leaderboard-table-body">
               <tr>
                 <td colspan="8" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
-                  No benchmark runs recorded yet. Click "🚀 Run Batch Quality Benchmark" above to evaluate models!
+                  No benchmark runs recorded yet. Click "🚀 Run Golden Benchmark Suite" above to evaluate architectures!
                 </td>
               </tr>
             </tbody>
@@ -452,50 +658,34 @@
         </div>
       </div>
 
-      </div>
-
-      <!-- Bottom Card: Comparative Scorecard Table for Conversational Turns -->
+      <!-- Bottom Card: Granular Test Case Inspector & Judge Rationales -->
       <div class="glass-card table-card" style="margin-bottom: 2rem;">
         <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
           <div>
-            <h3 class="panel-title">Session Quality Scorecard</h3>
-            <p class="panel-subtitle">Granular evaluation of real user queries with LLM Judge rationales</p>
-          </div>
-          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-            <select id="eval-filter-model" class="select-premium" style="font-size:0.8rem; padding:0.35rem 0.75rem;">
-              <option value="all">All Models</option>
-              <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-              <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
-              <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
-              <option value="claude-sonnet-5">Claude Sonnet 5</option>
-            </select>
-            <button type="button" id="btn-eval-grade-all" class="btn btn-premium-primary" style="font-size:0.8rem; padding:0.35rem 0.85rem;">
-              ⚡ Grade All Ungraded Turns
-            </button>
+            <h3 class="panel-title">Detailed Benchmark Run Transcripts & Judge Inspector</h3>
+            <p class="panel-subtitle">Inspect test prompts, expected ground truth tools, agent outputs, and judge rationales</p>
           </div>
         </div>
 
-        <div class="table-container" style="max-height: 420px; overflow-y: auto;">
+        <div class="table-container" style="max-height: 480px; overflow-y: auto;">
           <table class="premium-table">
             <thead>
               <tr>
-                <th>Time / ID</th>
-                <th>Model</th>
-                <th>Scenario App</th>
+                <th>Benchmark Test Case</th>
+                <th>Evaluated Architecture</th>
                 <th>User Query</th>
-                <th style="text-align:center;">Tool & Skill Routing</th>
+                <th style="text-align:center;">Expected Tools / Skills</th>
+                <th style="text-align:center;">Agent Invocations</th>
+                <th style="text-align:center;">Tool Match</th>
                 <th style="text-align:center;">Quality (1-5)</th>
-                <th style="text-align:center;">Accuracy (1-5)</th>
-                <th style="text-align:center;">Reasoning (1-5)</th>
                 <th style="text-align:right;">Cost ($)</th>
-                <th style="text-align:center;">Quality / $</th>
-                <th style="text-align:center;">Action</th>
+                <th style="text-align:center;">Judge Rationale</th>
               </tr>
             </thead>
             <tbody id="eval-scorecard-table-body">
               <tr>
-                <td colspan="11" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
-                  Awaiting conversational turns to evaluate... Send a query in the Agent Playground or run a batch benchmark!
+                <td colspan="9" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
+                  Awaiting benchmark execution... Click "🚀 Run Golden Benchmark Suite" to inspect granular results!
                 </td>
               </tr>
             </tbody>
