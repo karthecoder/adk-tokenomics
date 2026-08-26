@@ -333,7 +333,7 @@ naive_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.NAIVE_INSTRUCTION,
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
+    tools=[shared_logic.search_travel_catalog, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
 naive_app = App(root_agent=naive_agent, name="naive_app")
@@ -344,7 +344,7 @@ caching_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.CACHING_INSTRUCTION,
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
+    tools=[shared_logic.search_travel_catalog, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
 caching_app = App(
@@ -359,7 +359,7 @@ compaction_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.COMPACTION_INSTRUCTION,
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
+    tools=[shared_logic.search_travel_catalog, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
 compaction_app = App(
@@ -374,7 +374,7 @@ skills_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.SKILLS_INSTRUCTION_TEMPLATE.format(skills_catalog=skills_catalog),
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.activate_skill, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
+    tools=[shared_logic.activate_skill, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
 skills_app = App(root_agent=skills_agent, name="skills_app")

@@ -19,7 +19,7 @@ skills_agent = Agent(
     model=DynamicModel(),
     generate_content_config=get_agent_config(),
     instruction=prompts.SKILLS_INSTRUCTION_TEMPLATE.format(skills_catalog=skills_catalog),
-    tools=[shared_logic.get_weather, shared_logic.get_current_time, shared_logic.activate_skill, shared_logic.google_search],
+    tools=[shared_logic.activate_skill, shared_logic.google_search],
     after_model_callback=shared_logic.after_model_cb
 )
 

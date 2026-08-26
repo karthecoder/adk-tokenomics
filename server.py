@@ -105,20 +105,6 @@ def compute_tool_aggregates(turns):
             "count": 0,
             "targets": {}
         },
-        "get_weather": {
-            "name": "get_weather(city)",
-            "label": "Atmospheric Conditions",
-            "icon": "🌤️",
-            "count": 0,
-            "targets": {}
-        },
-        "get_current_time": {
-            "name": "get_current_time(city)",
-            "label": "Timezone Lookup",
-            "icon": "⏰",
-            "count": 0,
-            "targets": {}
-        },
         "google_search": {
             "name": "google_search(query)",
             "label": "Web Information Retrieval",
@@ -154,12 +140,6 @@ def compute_tool_aggregates(turns):
                         target = p.split("(")[1].split(")")[0].replace("city_name=", "").replace("city=", "").replace("'", "").replace('"', "").strip()
                         if target:
                             tools_summary["search_travel_catalog"]["targets"][target] = tools_summary["search_travel_catalog"]["targets"].get(target, 0) + 1
-                elif "get_weather" in p:
-                    tools_summary["get_weather"]["count"] += 1
-                    has_parsed_tool = True
-                elif "get_current_time" in p:
-                    tools_summary["get_current_time"]["count"] += 1
-                    has_parsed_tool = True
                 elif "google_search" in p or "web_search" in p:
                     tools_summary["google_search"]["count"] += 1
                     has_parsed_tool = True
@@ -189,15 +169,6 @@ def compute_tool_aggregates(turns):
                         tools_summary["search_travel_catalog"]["targets"][c_title] = tools_summary["search_travel_catalog"]["targets"].get(c_title, 0) + 1
                     has_parsed_tool = True
                     break
-
-            # Check weather / time intent
-            if not has_parsed_tool:
-                if any(w in combined_txt for w in ["60 degrees", "weather in", "temperature"]):
-                    tools_summary["get_weather"]["count"] += 1
-                    tools_summary["get_weather"]["targets"]["San Francisco"] = tools_summary["get_weather"]["targets"].get("San Francisco", 0) + 1
-                elif any(tm in combined_txt for tm in ["10:45 am", "what time is it", "timezone"]):
-                    tools_summary["get_current_time"]["count"] += 1
-                    tools_summary["get_current_time"]["targets"]["PST"] = tools_summary["get_current_time"]["targets"].get("PST", 0) + 1
                 
     return tools_summary
 
@@ -1092,11 +1063,11 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                         "expected_skills": ["zurich-travel", "geneva-travel"]
                     },
                     {
-                        "id": "bench_weather_time",
-                        "title": "Real-Time Weather & Local Time",
-                        "query": "What is the current weather and local time in San Francisco?",
-                        "expected_tools": ["get_weather", "get_current_time"],
-                        "expected_skills": []
+                        "id": "bench_sydney_attractions",
+                        "title": "Sydney Harbor & Cultural Guide",
+                        "query": "What are the cultural norms, hotel options, and key landmarks for visiting Sydney?",
+                        "expected_tools": ["activate_skill", "search_travel_catalog"],
+                        "expected_skills": ["sydney-travel"]
                     }
                 ]
 

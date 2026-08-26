@@ -578,16 +578,6 @@ def after_model_cb(callback_context, llm_response):
                 if t_str not in invoked_tools_list:
                     invoked_tools_list.append(t_str)
 
-    # Check weather tool intent
-    if any(w in combined_grounding for w in ["60 degrees and foggy", "degrees and foggy", "weather in", "current weather", "temperature"]):
-        if not any("get_weather" in t for t in invoked_tools_list):
-            invoked_tools_list.append("get_weather(SF)")
-
-    # Check time tool intent
-    if any(tm in combined_grounding for tm in ["10:45 am pst", "current time", "what time is it", "timezone"]):
-        if not any("get_current_time" in t for t in invoked_tools_list):
-            invoked_tools_list.append("get_current_time(SF)")
-
     session_id = "test_session"
     try:
         session_id = getattr(getattr(callback_context, "session", None), "id", "test_session")
@@ -884,13 +874,7 @@ def evaluate_tool_and_skill_routing(user_query: str, agent_response: str, invoke
                 expected_skills.append(skill_name)
                 
     if not expected_skills:
-        # Check query for generic intent
-        if "weather" in query_lower:
-            expected_tools = ["get_weather"]
-        elif "time" in query_lower:
-            expected_tools = ["get_current_time"]
-        else:
-            expected_tools = ["search_travel_catalog", "activate_skill"]
+        expected_tools = ["search_travel_catalog", "activate_skill"]
     else:
         expected_tools = [f"activate_skill({s})" for s in expected_skills]
 
