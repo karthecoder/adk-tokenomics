@@ -120,6 +120,9 @@
       <button type="button" id="tab-btn-telemetry" class="main-tab-btn">
         📊 Telemetry & Analytics
       </button>
+      <button type="button" id="tab-btn-bq" class="main-tab-btn">
+        🗄️ BigQuery Explorer
+      </button>
     </nav>
 
     <!-- TAB PANE 1: Interactive Agent Playground -->
@@ -462,6 +465,200 @@
 
     </div>
 
+    <!-- TAB PANE 3: Dedicated BigQuery Table Logs Explorer -->
+    <div id="tab-pane-bq" class="main-tab-pane" style="display:none;">
+      
+      <!-- Top BigQuery Header & Stats KPI Cards -->
+      <div class="glass-card panel-card" style="margin-bottom: 1.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+          <div>
+            <h2 style="font-size:1.35rem; font-weight:700; color:var(--color-primary-light); display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
+              <span>🗄️</span> BigQuery Table Logs Explorer
+            </h2>
+            <p style="color:var(--color-text-muted); font-size:0.85rem;">
+              Direct on-demand view of <code>vertexai-demo-ltfpzhaw.bq_adk_ds.token_consumption_logs</code> (14 columns, partitioned by <code>DAY</code>).
+            </p>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <button type="button" id="btn-bq-refresh" class="btn btn-premium-primary" style="padding:0.5rem 1rem; font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:0.4rem;">
+              <span>🔄</span> Refresh Logs
+            </button>
+            <button type="button" id="btn-bq-export-csv" class="btn" style="padding:0.5rem 1rem; font-size:0.85rem; font-weight:600; background:rgba(255,255,255,0.08); color:var(--color-text); border:1px solid rgba(255,255,255,0.12); border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:0.4rem;">
+              <span>📥</span> Export CSV
+            </button>
+            <button type="button" id="btn-bq-export-json" class="btn" style="padding:0.5rem 1rem; font-size:0.85rem; font-weight:600; background:rgba(255,255,255,0.08); color:var(--color-text); border:1px solid rgba(255,255,255,0.12); border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:0.4rem;">
+              <span>📋</span> Export JSON
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Summary Stats Row -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-top:1.25rem; padding-top:1.25rem; border-top:1px solid rgba(255,255,255,0.08);">
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:0.75rem 1rem;">
+            <div style="font-size:0.75rem; color:var(--color-text-muted); text-transform:uppercase;">Total Turns Logged</div>
+            <div id="bq-stat-total-turns" style="font-size:1.3rem; font-weight:700; color:var(--color-primary-light); margin-top:0.2rem;">-</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:0.75rem 1rem;">
+            <div style="font-size:0.75rem; color:var(--color-text-muted); text-transform:uppercase;">Total Lifetime Spend</div>
+            <div id="bq-stat-total-cost" style="font-size:1.3rem; font-weight:700; color:var(--color-success); margin-top:0.2rem;">-</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:0.75rem 1rem;">
+            <div style="font-size:0.75rem; color:var(--color-text-muted); text-transform:uppercase;">Total Tokens (Fresh / Cached)</div>
+            <div id="bq-stat-total-tokens" style="font-size:1.15rem; font-weight:700; color:#cbd5e1; margin-top:0.2rem;">-</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:0.75rem 1rem;">
+            <div style="font-size:0.75rem; color:var(--color-text-muted); text-transform:uppercase;">Unique Sessions</div>
+            <div id="bq-stat-unique-sessions" style="font-size:1.3rem; font-weight:700; color:#c084fc; margin-top:0.2rem;">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter & Search Toolbar -->
+      <div class="glass-card panel-card" style="margin-bottom: 1.25rem; padding: 1rem 1.25rem;">
+        <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end;">
+          <div style="flex:1; min-width:180px;">
+            <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-text-muted); margin-bottom:0.35rem;">Filter by Architecture:</label>
+            <select id="bq-filter-app" class="select-premium" style="width:100%;">
+              <option value="all">All Architectures (4 Apps)</option>
+              <option value="naive_app">1. Naive Monolithic (naive_app)</option>
+              <option value="caching_app">2. Context Caching (caching_app)</option>
+              <option value="compaction_app">3. History Compaction (compaction_app)</option>
+              <option value="skills_app">4. Modular Skills (skills_app)</option>
+            </select>
+          </div>
+
+          <div style="flex:1.5; min-width:220px;">
+            <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-text-muted); margin-bottom:0.35rem;">Search Session ID / Content:</label>
+            <input type="text" id="bq-search-query" placeholder="Search session ID, query text, or tool..." style="width:100%; padding:0.55rem 0.75rem; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(15,23,42,0.6); color:#fff; font-size:0.85rem;">
+          </div>
+
+          <div style="min-width:120px;">
+            <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-text-muted); margin-bottom:0.35rem;">Rows Per Page:</label>
+            <select id="bq-filter-limit" class="select-premium" style="width:100%;">
+              <option value="25">25 Rows</option>
+              <option value="50" selected>50 Rows (Default)</option>
+              <option value="100">100 Rows</option>
+            </select>
+          </div>
+
+          <div>
+            <button type="button" id="btn-bq-apply-filter" class="btn btn-premium-primary" style="padding:0.55rem 1.25rem; font-size:0.85rem; font-weight:600;">
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main BigQuery Raw Logs Ledger Table -->
+      <div class="glass-card table-card" style="margin-bottom: 2rem;">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <h3 class="panel-title" style="color:var(--color-primary-light);">
+              <span>📋</span> BigQuery Query Results Table
+            </h3>
+            <p class="panel-subtitle">Displaying parameterized SQL query results ordered by timestamp descending</p>
+          </div>
+          <span id="bq-table-count-badge" class="badge badge-primary" style="font-size:0.8rem;">Loading rows...</span>
+        </div>
+
+        <div class="table-container" style="max-height: 540px; overflow-y: auto;">
+          <table class="premium-table" style="font-size:0.85rem;">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>UTC Timestamp</th>
+                <th>Session ID</th>
+                <th>Scenario App</th>
+                <th>User Query</th>
+                <th>Response Snippet</th>
+                <th>Tokens (In / Cached / Out / Think)</th>
+                <th>Cost ($)</th>
+                <th>Tools & Skills</th>
+                <th style="text-align:center;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="bq-logs-table-body">
+              <tr>
+                <td colspan="10" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
+                  Loading BigQuery records...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Controls Bar -->
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:1rem 1.25rem; border-top:1px solid rgba(255,255,255,0.08); flex-wrap:wrap; gap:0.75rem;">
+          <div style="font-size:0.85rem; color:var(--color-text-muted);">
+            Showing <span id="bq-page-range" style="color:#fff; font-weight:600;">0 - 0</span> of <span id="bq-total-count" style="color:#fff; font-weight:600;">0</span> records
+          </div>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <button type="button" id="btn-bq-prev-page" class="btn" style="padding:0.4rem 0.85rem; font-size:0.8rem; background:rgba(255,255,255,0.08); color:var(--color-text); border:1px solid rgba(255,255,255,0.12); border-radius:6px; cursor:pointer;" disabled>
+              &larr; Previous
+            </button>
+            <span id="bq-page-current" style="font-size:0.85rem; font-weight:600; color:var(--color-primary-light); padding:0 0.5rem;">Page 1</span>
+            <button type="button" id="btn-bq-next-page" class="btn" style="padding:0.4rem 0.85rem; font-size:0.8rem; background:rgba(255,255,255,0.08); color:var(--color-text); border:1px solid rgba(255,255,255,0.12); border-radius:6px; cursor:pointer;" disabled>
+              Next &rarr;
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- BigQuery Row JSON & Transcript Inspector Modal -->
+  <div id="bq-row-modal-overlay" class="modal-overlay hidden" style="display:none;">
+    <div class="modal-card glass-card" style="max-width: 780px;">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">BigQuery Record Details & Raw JSON</h2>
+          <p class="modal-subtitle">Turn inspection with unclipped prompts, responses, and BigQuery row attributes</p>
+        </div>
+        <button id="btn-close-bq-modal" class="btn-close-modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:0.75rem; margin-bottom:1rem;">
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.75rem;">
+            <div style="font-size:0.7rem; color:var(--color-text-muted); text-transform:uppercase;">App Scenario</div>
+            <div id="modal-bq-app" style="font-size:0.95rem; font-weight:700; color:var(--color-primary-light);">-</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.75rem;">
+            <div style="font-size:0.7rem; color:var(--color-text-muted); text-transform:uppercase;">Model Name</div>
+            <div id="modal-bq-model" style="font-size:0.95rem; font-weight:700; color:#34d399;">-</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.75rem;">
+            <div style="font-size:0.7rem; color:var(--color-text-muted); text-transform:uppercase;">Estimated Cost</div>
+            <div id="modal-bq-cost" style="font-size:0.95rem; font-weight:700; color:var(--color-success);">-</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.75rem;">
+            <div style="font-size:0.7rem; color:var(--color-text-muted); text-transform:uppercase;">Timestamp (UTC)</div>
+            <div id="modal-bq-time" style="font-size:0.8rem; font-weight:600; color:#cbd5e1; word-break:break-all;">-</div>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem;">
+          <div style="font-size:0.75rem; text-transform:uppercase; color:var(--color-primary-light); font-weight:700; margin-bottom:0.25rem;">User Query</div>
+          <div id="modal-bq-query" style="font-size:0.9rem; color:var(--color-text); line-height:1.5; white-space:pre-wrap;">-</div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem; max-height:200px; overflow-y:auto;">
+          <div style="font-size:0.75rem; text-transform:uppercase; color:var(--color-accent); font-weight:700; margin-bottom:0.25rem;">Agent Response</div>
+          <div id="modal-bq-response" style="font-size:0.85rem; color:#e2e8f0; line-height:1.5; white-space:pre-wrap;">-</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:0.75rem 1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+            <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8; font-weight:700;">Raw BigQuery Row JSON</span>
+            <button type="button" id="btn-copy-bq-json" style="background:transparent; border:none; color:var(--color-primary-light); font-size:0.75rem; cursor:pointer; font-weight:600;">📋 Copy JSON</button>
+          </div>
+          <pre id="modal-bq-raw-json" style="max-height:150px; overflow:auto; font-size:0.75rem; color:#a7f3d0; font-family:monospace; margin:0; line-height:1.4;"></pre>
+        </div>
+      </div>
+    </div>
   </div>
   
   <!-- Model Management Modal -->

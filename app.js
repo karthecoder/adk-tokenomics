@@ -20,14 +20,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Main Tab Navigation Switcher
   const tabBtnPlayground = document.getElementById('tab-btn-playground');
   const tabBtnTelemetry = document.getElementById('tab-btn-telemetry');
+  const tabBtnBq = document.getElementById('tab-btn-bq');
   const tabPanePlayground = document.getElementById('tab-pane-playground');
   const tabPaneTelemetry = document.getElementById('tab-pane-telemetry');
+  const tabPaneBq = document.getElementById('tab-pane-bq');
 
   function switchTab(activeTab) {
-    [tabBtnPlayground, tabBtnTelemetry].forEach(btn => {
+    [tabBtnPlayground, tabBtnTelemetry, tabBtnBq].forEach(btn => {
       if (btn) btn.classList.remove('active');
     });
-    [tabPanePlayground, tabPaneTelemetry].forEach(pane => {
+    [tabPanePlayground, tabPaneTelemetry, tabPaneBq].forEach(pane => {
       if (pane) {
         pane.classList.add('hidden');
         pane.style.display = 'none';
@@ -46,11 +48,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (costLineChart) costLineChart.resize();
         if (whatIfBarChart) whatIfBarChart.resize();
       }, 50);
+    } else if (activeTab === 'bq' && tabBtnBq && tabPaneBq) {
+      tabBtnBq.classList.add('active');
+      tabPaneBq.classList.remove('hidden');
+      tabPaneBq.style.display = 'block';
+      loadBqExplorerView();
     }
   }
 
   if (tabBtnPlayground) tabBtnPlayground.addEventListener('click', () => switchTab('playground'));
   if (tabBtnTelemetry) tabBtnTelemetry.addEventListener('click', () => switchTab('telemetry'));
+  if (tabBtnBq) tabBtnBq.addEventListener('click', () => switchTab('bq'));
 
   // Focus Mode (Collapsible Header & Controls)
   const btnToggleFocusMode = document.getElementById('btn-toggle-focus-mode');
@@ -1101,4 +1109,330 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchActiveConfig();
     startPolling();
   });
+
+  // ==========================================
+  // BIGQUERY TABLE LOGS EXPLORER ENGINE
+  // ==========================================
+  let bqCurrentOffset = 0;
+  let bqCurrentLimit = 50;
+  let bqTotalRows = 0;
+  let bqCachedRows = [];
+
+  const bqFilterApp = document.getElementById('bq-filter-app');
+  const bqSearchQuery = document.getElementById('bq-search-query');
+  const bqFilterLimit = document.getElementById('bq-filter-limit');
+  const btnBqApplyFilter = document.getElementById('btn-bq-apply-filter');
+  const btnBqRefresh = document.getElementById('btn-bq-refresh');
+  const btnBqExportCsv = document.getElementById('btn-bq-export-csv');
+  const btnBqExportJson = document.getElementById('btn-bq-export-json');
+  const bqLogsTableBody = document.getElementById('bq-logs-table-body');
+  const bqTableCountBadge = document.getElementById('bq-table-count-badge');
+  const bqPageRange = document.getElementById('bq-page-range');
+  const bqTotalCount = document.getElementById('bq-total-count');
+  const bqPageCurrent = document.getElementById('bq-page-current');
+  const btnBqPrevPage = document.getElementById('btn-bq-prev-page');
+  const btnBqNextPage = document.getElementById('btn-bq-next-page');
+
+  const bqRowModalOverlay = document.getElementById('bq-row-modal-overlay');
+  const btnCloseBqModal = document.getElementById('btn-close-bq-modal');
+  const modalBqApp = document.getElementById('modal-bq-app');
+  const modalBqModel = document.getElementById('modal-bq-model');
+  const modalBqCost = document.getElementById('modal-bq-cost');
+  const modalBqTime = document.getElementById('modal-bq-time');
+  const modalBqQuery = document.getElementById('modal-bq-query');
+  const modalBqResponse = document.getElementById('modal-bq-response');
+  const modalBqRawJson = document.getElementById('modal-bq-raw-json');
+  const btnCopyBqJson = document.getElementById('btn-copy-bq-json');
+
+  if (btnCloseBqModal && bqRowModalOverlay) {
+    btnCloseBqModal.addEventListener('click', () => {
+      bqRowModalOverlay.classList.add('hidden');
+      bqRowModalOverlay.style.display = 'none';
+    });
+    bqRowModalOverlay.addEventListener('click', (e) => {
+      if (e.target === bqRowModalOverlay) {
+        bqRowModalOverlay.classList.add('hidden');
+        bqRowModalOverlay.style.display = 'none';
+      }
+    });
+  }
+
+  if (btnCopyBqJson && modalBqRawJson) {
+    btnCopyBqJson.addEventListener('click', () => {
+      navigator.clipboard.writeText(modalBqRawJson.textContent).then(() => {
+        const orig = btnCopyBqJson.textContent;
+        btnCopyBqJson.textContent = '✅ Copied!';
+        setTimeout(() => { btnCopyBqJson.textContent = orig; }, 1500);
+      });
+    });
+  }
+
+  function loadBqExplorerView() {
+    fetchBqStats();
+    fetchBqLogs(0);
+  }
+
+  function fetchBqStats() {
+    fetch('/api/bq/stats')
+      .then(res => res.json())
+      .then(stats => {
+        const elTurns = document.getElementById('bq-stat-total-turns');
+        const elCost = document.getElementById('bq-stat-total-cost');
+        const elTokens = document.getElementById('bq-stat-total-tokens');
+        const elSessions = document.getElementById('bq-stat-unique-sessions');
+
+        if (elTurns) elTurns.textContent = Number(stats.total_turns || 0).toLocaleString() + ' turns';
+        if (elCost) elCost.textContent = '$' + Number(stats.total_cost || 0).toFixed(5);
+        if (elTokens) {
+          const fresh = Number(stats.total_input || 0).toLocaleString();
+          const cached = Number(stats.total_cached || 0).toLocaleString();
+          elTokens.textContent = `${fresh} / ${cached}`;
+        }
+        if (elSessions) elSessions.textContent = Number(stats.unique_sessions || 0).toLocaleString() + ' sessions';
+      })
+      .catch(err => console.warn('Failed to fetch BQ stats:', err));
+  }
+
+  function fetchBqLogs(offset = 0) {
+    bqCurrentOffset = offset;
+    if (bqFilterLimit) bqCurrentLimit = parseInt(bqFilterLimit.value, 10) || 50;
+
+    const appFilter = bqFilterApp ? bqFilterApp.value : 'all';
+    const searchVal = bqSearchQuery ? bqSearchQuery.value.trim() : '';
+
+    let url = `/api/bq/logs?limit=${bqCurrentLimit}&offset=${bqCurrentOffset}`;
+    if (appFilter && appFilter !== 'all') url += `&app_name=${encodeURIComponent(appFilter)}`;
+    if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
+
+    if (bqTableCountBadge) bqTableCountBadge.textContent = 'Querying BigQuery...';
+
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          bqTotalRows = data.total_rows || 0;
+          bqCachedRows = data.rows || [];
+          renderBqLogsTable(bqCachedRows);
+          updateBqPagination();
+        } else {
+          if (bqLogsTableBody) {
+            bqLogsTableBody.innerHTML = `
+              <tr>
+                <td colspan="10" style="text-align:center; padding:2rem; color:#ef4444;">
+                  ⚠️ Error loading logs from BigQuery: ${escapeHtml(data.message || 'Unknown error')}
+                </td>
+              </tr>
+            `;
+          }
+          if (bqTableCountBadge) bqTableCountBadge.textContent = 'Error';
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch BQ logs:', err);
+        if (bqLogsTableBody) {
+          bqLogsTableBody.innerHTML = `
+            <tr>
+              <td colspan="10" style="text-align:center; padding:2rem; color:#ef4444;">
+                ⚠️ Failed to communicate with BigQuery server.
+              </td>
+            </tr>
+          `;
+        }
+        if (bqTableCountBadge) bqTableCountBadge.textContent = 'Connection Error';
+      });
+  }
+
+  function renderBqLogsTable(rows) {
+    if (!bqLogsTableBody) return;
+
+    if (!rows || rows.length === 0) {
+      bqLogsTableBody.innerHTML = `
+        <tr>
+          <td colspan="10" style="text-align:center; padding:2rem; color:var(--color-text-muted);">
+            No records matched the filter criteria in BigQuery.
+          </td>
+        </tr>
+      `;
+      if (bqTableCountBadge) bqTableCountBadge.textContent = '0 Records';
+      return;
+    }
+
+    if (bqTableCountBadge) {
+      bqTableCountBadge.textContent = `${bqTotalRows.toLocaleString()} Records Total`;
+    }
+
+    let html = '';
+    rows.forEach((r, idx) => {
+      const rowIdx = bqCurrentOffset + idx + 1;
+      const timeFormatted = r.timestamp ? (r.timestamp.replace('T', ' ').substring(0, 19) + ' UTC') : '-';
+      
+      const appName = r.app_name || 'unknown';
+      let appBadgeClass = 'badge-primary';
+      let appDisplay = appName;
+      if (appName === 'naive_app') { appBadgeClass = 'badge-danger'; appDisplay = '1. Naive'; }
+      else if (appName === 'caching_app') { appBadgeClass = 'badge-success'; appDisplay = '2. Caching'; }
+      else if (appName === 'compaction_app') { appBadgeClass = 'badge-warning'; appDisplay = '3. Compaction'; }
+      else if (appName === 'skills_app') { appBadgeClass = 'badge-primary'; appDisplay = '4. Modular Skills'; }
+
+      const querySnippet = r.user_query ? (r.user_query.length > 55 ? r.user_query.substring(0, 52) + '...' : r.user_query) : '-';
+      const respSnippet = r.agent_response ? (r.agent_response.length > 60 ? r.agent_response.substring(0, 57) + '...' : r.agent_response) : '-';
+
+      const promptTok = Number(r.prompt_tokens || 0).toLocaleString();
+      const cachedTok = Number(r.cached_tokens || 0).toLocaleString();
+      const outTok = Number(r.output_tokens || 0).toLocaleString();
+      const thinkTok = Number(r.thinking_tokens || 0).toLocaleString();
+      const costStr = '$' + Number(r.estimated_cost || 0).toFixed(5);
+
+      // Tools / Skills badge
+      let toolsBadge = '<span style="color:var(--color-text-muted); font-size:0.75rem;">None</span>';
+      if (r.invoked_skills) {
+        toolsBadge = `<span class="badge badge-primary" style="font-size:0.7rem;">⚡ ${escapeHtml(r.invoked_skills)}</span>`;
+      } else if (r.invoked_tools) {
+        toolsBadge = `<span class="badge" style="background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); font-size:0.7rem;">🛠️ ${escapeHtml(r.invoked_tools.length > 30 ? r.invoked_tools.substring(0, 28) + '..' : r.invoked_tools)}</span>`;
+      }
+
+      html += `
+        <tr style="cursor:pointer;" onclick="window.inspectBqRow(${idx})">
+          <td style="font-family:monospace; color:var(--color-text-muted);">${rowIdx}</td>
+          <td style="font-family:monospace; font-size:0.75rem; color:#94a3b8; white-space:nowrap;">${escapeHtml(timeFormatted)}</td>
+          <td style="font-family:monospace; font-size:0.75rem; color:#60a5fa; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(r.session_id)}">
+            ${escapeHtml(r.session_id || '-')}
+          </td>
+          <td><span class="badge ${appBadgeClass}" style="font-size:0.75rem;">${escapeHtml(appDisplay)}</span></td>
+          <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(r.user_query)}">
+            ${escapeHtml(querySnippet)}
+          </td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--color-text-muted);" title="${escapeHtml(r.agent_response)}">
+            ${escapeHtml(respSnippet)}
+          </td>
+          <td style="font-family:monospace; font-size:0.75rem; white-space:nowrap;">
+            <span style="color:#60a5fa;" title="Fresh Input">${promptTok}</span> / 
+            <span style="color:#34d399;" title="Cached Discounted">${cachedTok}</span> / 
+            <span style="color:#f59e0b;" title="Output">${outTok}</span> / 
+            <span style="color:#c084fc;" title="Thinking">${thinkTok}</span>
+          </td>
+          <td style="font-family:monospace; font-weight:600; color:var(--color-success);">${costStr}</td>
+          <td>${toolsBadge}</td>
+          <td style="text-align:center;">
+            <button type="button" class="btn" style="padding:0.25rem 0.6rem; font-size:0.75rem; background:rgba(255,255,255,0.06); color:var(--color-primary-light); border:1px solid rgba(255,255,255,0.1); border-radius:6px; cursor:pointer;" onclick="event.stopPropagation(); window.inspectBqRow(${idx});">
+              🔍 View
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    bqLogsTableBody.innerHTML = html;
+  }
+
+  function updateBqPagination() {
+    const start = bqTotalRows === 0 ? 0 : bqCurrentOffset + 1;
+    const end = Math.min(bqCurrentOffset + bqCurrentLimit, bqTotalRows);
+    const currentPage = Math.floor(bqCurrentOffset / bqCurrentLimit) + 1;
+    const totalPages = Math.ceil(bqTotalRows / bqCurrentLimit) || 1;
+
+    if (bqPageRange) bqPageRange.textContent = `${start} - ${end}`;
+    if (bqTotalCount) bqTotalCount.textContent = bqTotalRows.toLocaleString();
+    if (bqPageCurrent) bqPageCurrent.textContent = `Page ${currentPage} of ${totalPages}`;
+
+    if (btnBqPrevPage) btnBqPrevPage.disabled = bqCurrentOffset <= 0;
+    if (btnBqNextPage) btnBqNextPage.disabled = end >= bqTotalRows;
+  }
+
+  window.inspectBqRow = function(index) {
+    const row = bqCachedRows[index];
+    if (!row || !bqRowModalOverlay) return;
+
+    if (modalBqApp) modalBqApp.textContent = row.app_name || '-';
+    if (modalBqModel) modalBqModel.textContent = row.model_name || 'Gemini 3.5 Flash';
+    if (modalBqCost) modalBqCost.textContent = '$' + Number(row.estimated_cost || 0).toFixed(5);
+    if (modalBqTime) modalBqTime.textContent = row.timestamp || '-';
+    if (modalBqQuery) modalBqQuery.textContent = row.user_query || '(empty prompt)';
+    if (modalBqResponse) modalBqResponse.textContent = row.agent_response || '(empty response)';
+    if (modalBqRawJson) modalBqRawJson.textContent = JSON.stringify(row, null, 2);
+
+    bqRowModalOverlay.classList.remove('hidden');
+    bqRowModalOverlay.style.display = 'flex';
+  };
+
+  if (btnBqApplyFilter) {
+    btnBqApplyFilter.addEventListener('click', () => fetchBqLogs(0));
+  }
+
+  if (btnBqRefresh) {
+    btnBqRefresh.addEventListener('click', () => {
+      fetchBqStats();
+      fetchBqLogs(bqCurrentOffset);
+    });
+  }
+
+  if (btnBqPrevPage) {
+    btnBqPrevPage.addEventListener('click', () => {
+      if (bqCurrentOffset > 0) {
+        fetchBqLogs(Math.max(0, bqCurrentOffset - bqCurrentLimit));
+      }
+    });
+  }
+
+  if (btnBqNextPage) {
+    btnBqNextPage.addEventListener('click', () => {
+      if (bqCurrentOffset + bqCurrentLimit < bqTotalRows) {
+        fetchBqLogs(bqCurrentOffset + bqCurrentLimit);
+      }
+    });
+  }
+
+  if (btnBqExportJson) {
+    btnBqExportJson.addEventListener('click', () => {
+      if (!bqCachedRows || bqCachedRows.length === 0) {
+        alert('No rows available to export.');
+        return;
+      }
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bqCachedRows, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `bq_token_logs_${new Date().toISOString().substring(0, 10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    });
+  }
+
+  if (btnBqExportCsv) {
+    btnBqExportCsv.addEventListener('click', () => {
+      if (!bqCachedRows || bqCachedRows.length === 0) {
+        alert('No rows available to export.');
+        return;
+      }
+      const headers = ["timestamp", "session_id", "app_name", "model_name", "prompt_tokens", "cached_tokens", "output_tokens", "thinking_tokens", "estimated_cost", "invoked_tools", "invoked_skills", "user_query", "agent_response"];
+      let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n";
+
+      bqCachedRows.forEach(r => {
+        const rowData = [
+          `"${(r.timestamp || '').replace(/"/g, '""')}"`,
+          `"${(r.session_id || '').replace(/"/g, '""')}"`,
+          `"${(r.app_name || '').replace(/"/g, '""')}"`,
+          `"${(r.model_name || '').replace(/"/g, '""')}"`,
+          r.prompt_tokens || 0,
+          r.cached_tokens || 0,
+          r.output_tokens || 0,
+          r.thinking_tokens || 0,
+          r.estimated_cost || 0.0,
+          `"${(r.invoked_tools || '').replace(/"/g, '""')}"`,
+          `"${(r.invoked_skills || '').replace(/"/g, '""')}"`,
+          `"${(r.user_query || '').replace(/"/g, '""')}"`,
+          `"${(r.agent_response || '').replace(/"/g, '""')}"`
+        ];
+        csvContent += rowData.join(",") + "\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `bq_token_logs_${new Date().toISOString().substring(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    });
+  }
 });

@@ -421,6 +421,174 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             print(f"[ERROR] fetch_sessions_from_bq error: {e}", flush=True)
             return []
 
+    def fetch_bq_explorer_logs(self, limit=50, offset=0, app_name=None, session_id=None, search=None):
+        from google.cloud import bigquery
+        from google.cloud.exceptions import NotFound
+        
+        limit = min(max(1, int(limit)), 200)
+        offset = max(0, int(offset))
+        
+        try:
+            client = bigquery.Client()
+            project = client.project
+            dataset_id = "bq_adk_ds"
+            try:
+                client.get_dataset(f"{project}.{dataset_id}")
+            except NotFound:
+                dataset_id = "karticn_adk_demo"
+                try:
+                    client.get_dataset(f"{project}.{dataset_id}")
+                except NotFound:
+                    return {"status": "success", "total_rows": 0, "rows": [], "limit": limit, "offset": offset}
+                    
+            table_id = "token_consumption_logs"
+            full_table_id = f"{project}.{dataset_id}.{table_id}"
+            
+            try:
+                client.get_table(full_table_id)
+            except NotFound:
+                return {"status": "success", "total_rows": 0, "rows": [], "limit": limit, "offset": offset}
+                
+            where_conds = []
+            params = []
+            
+            if app_name and app_name != "all":
+                where_conds.append("app_name = @app_name")
+                params.append(bigquery.ScalarQueryParameter("app_name", "STRING", app_name))
+                
+            if session_id and session_id.strip():
+                where_conds.append("LOWER(session_id) LIKE @session_id")
+                params.append(bigquery.ScalarQueryParameter("session_id", "STRING", f"%{session_id.strip().lower()}%"))
+                
+            if search and search.strip():
+                where_conds.append("(LOWER(user_query) LIKE @search OR LOWER(agent_response) LIKE @search OR LOWER(invoked_tools) LIKE @search)")
+                params.append(bigquery.ScalarQueryParameter("search", "STRING", f"%{search.strip().lower()}%"))
+                
+            where_clause = "WHERE " + " AND ".join(where_conds) if where_conds else ""
+            
+            # Count query for pagination
+            count_query = f"SELECT COUNT(*) as total FROM `{full_table_id}` {where_clause}"
+            job_config = bigquery.QueryJobConfig(query_parameters=params) if params else None
+            count_job = client.query(count_query, job_config=job_config)
+            total_count = list(count_job.result())[0].total
+            
+            # Data query with all 14 columns
+            data_query = f"""
+                SELECT 
+                    timestamp,
+                    session_id,
+                    app_name,
+                    user_query,
+                    agent_response,
+                    prompt_tokens,
+                    cached_tokens,
+                    output_tokens,
+                    COALESCE(thinking_tokens, 0) as thinking_tokens,
+                    estimated_cost,
+                    source,
+                    COALESCE(model_name, 'Gemini 3.5 Flash') as model_name,
+                    COALESCE(invoked_tools, '') as invoked_tools,
+                    COALESCE(invoked_skills, '') as invoked_skills
+                FROM `{full_table_id}`
+                {where_clause}
+                ORDER BY timestamp DESC
+                LIMIT @limit OFFSET @offset
+            """
+            data_params = list(params)
+            data_params.append(bigquery.ScalarQueryParameter("limit", "INT64", limit))
+            data_params.append(bigquery.ScalarQueryParameter("offset", "INT64", offset))
+            
+            data_job_config = bigquery.QueryJobConfig(query_parameters=data_params)
+            query_job = client.query(data_query, job_config=data_job_config)
+            results = query_job.result()
+            
+            rows = []
+            for r in results:
+                rows.append({
+                    "timestamp": r.timestamp.isoformat() if hasattr(r.timestamp, "isoformat") else str(r.timestamp),
+                    "session_id": str(r.session_id),
+                    "app_name": str(r.app_name),
+                    "user_query": str(getattr(r, "user_query", "") or ""),
+                    "agent_response": str(getattr(r, "agent_response", "") or ""),
+                    "prompt_tokens": int(r.prompt_tokens or 0),
+                    "cached_tokens": int(r.cached_tokens or 0),
+                    "output_tokens": int(r.output_tokens or 0),
+                    "thinking_tokens": int(getattr(r, "thinking_tokens", 0) or 0),
+                    "estimated_cost": float(r.estimated_cost or 0.0),
+                    "source": str(getattr(r, "source", "adk_playground") or "adk_playground"),
+                    "model_name": str(getattr(r, "model_name", "Gemini 3.5 Flash") or "Gemini 3.5 Flash"),
+                    "invoked_tools": str(getattr(r, "invoked_tools", "") or ""),
+                    "invoked_skills": str(getattr(r, "invoked_skills", "") or "")
+                })
+                
+            return {
+                "status": "success",
+                "total_rows": total_count,
+                "limit": limit,
+                "offset": offset,
+                "rows": rows
+            }
+        except Exception as e:
+            print(f"[ERROR] fetch_bq_explorer_logs: {e}", flush=True)
+            return {
+                "status": "error",
+                "message": str(e),
+                "total_rows": 0,
+                "rows": [],
+                "limit": limit,
+                "offset": offset
+            }
+
+    def fetch_bq_stats(self):
+        from google.cloud import bigquery
+        from google.cloud.exceptions import NotFound
+        
+        try:
+            client = bigquery.Client()
+            project = client.project
+            dataset_id = "bq_adk_ds"
+            try:
+                client.get_dataset(f"{project}.{dataset_id}")
+            except NotFound:
+                dataset_id = "karticn_adk_demo"
+                try:
+                    client.get_dataset(f"{project}.{dataset_id}")
+                except NotFound:
+                    return {"total_turns": 0, "total_cost": 0.0, "total_input": 0, "total_cached": 0, "total_output": 0, "unique_sessions": 0}
+                    
+            table_id = "token_consumption_logs"
+            full_table_id = f"{project}.{dataset_id}.{table_id}"
+            
+            try:
+                client.get_table(full_table_id)
+            except NotFound:
+                return {"total_turns": 0, "total_cost": 0.0, "total_input": 0, "total_cached": 0, "total_output": 0, "unique_sessions": 0}
+                
+            query = f"""
+                SELECT 
+                    COUNT(*) as total_turns,
+                    COALESCE(SUM(estimated_cost), 0.0) as total_cost,
+                    COALESCE(SUM(prompt_tokens), 0) as total_input,
+                    COALESCE(SUM(cached_tokens), 0) as total_cached,
+                    COALESCE(SUM(output_tokens), 0) as total_output,
+                    COUNT(DISTINCT session_id) as unique_sessions
+                FROM `{full_table_id}`
+            """
+            query_job = client.query(query)
+            row = list(query_job.result())[0]
+            
+            return {
+                "total_turns": int(row.total_turns or 0),
+                "total_cost": float(row.total_cost or 0.0),
+                "total_input": int(row.total_input or 0),
+                "total_cached": int(row.total_cached or 0),
+                "total_output": int(row.total_output or 0),
+                "unique_sessions": int(row.unique_sessions or 0)
+            }
+        except Exception as e:
+            print(f"[ERROR] fetch_bq_stats: {e}", flush=True)
+            return {"total_turns": 0, "total_cost": 0.0, "total_input": 0, "total_cached": 0, "total_output": 0, "unique_sessions": 0}
+
     def clear_bq_table(self):
         from google.cloud import bigquery
         from google.cloud.exceptions import NotFound
@@ -585,6 +753,29 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 "thinking_budget": thinking_budget,
                 "max_output_tokens": max_output_tokens
             }).encode('utf-8'))
+
+        elif path == '/api/bq/logs':
+            query_params = urllib.parse.parse_qs(url_parts.query)
+            limit = query_params.get('limit', ['50'])[0]
+            offset = query_params.get('offset', ['0'])[0]
+            app_name = query_params.get('app_name', [None])[0]
+            session_id = query_params.get('session_id', [None])[0]
+            search = query_params.get('search', [None])[0]
+            
+            data = self.fetch_bq_explorer_logs(limit, offset, app_name, session_id, search)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode('utf-8'))
+
+        elif path == '/api/bq/stats':
+            stats = self.fetch_bq_stats()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(stats).encode('utf-8'))
 
         else:
             super().do_GET()
