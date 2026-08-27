@@ -755,7 +755,6 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             }).encode('utf-8'))
 
         elif path == '/api/bq/logs':
-            query_params = urllib.parse.parse_qs(url_parts.query)
             limit = query_params.get('limit', ['50'])[0]
             offset = query_params.get('offset', ['0'])[0]
             app_name = query_params.get('app_name', [None])[0]
