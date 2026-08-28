@@ -31,15 +31,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabBtnPlayground = document.getElementById('tab-btn-playground');
   const tabBtnTelemetry = document.getElementById('tab-btn-telemetry');
   const tabBtnBq = document.getElementById('tab-btn-bq');
+  const tabBtnFinops = document.getElementById('tab-btn-finops');
   const tabPanePlayground = document.getElementById('tab-pane-playground');
   const tabPaneTelemetry = document.getElementById('tab-pane-telemetry');
   const tabPaneBq = document.getElementById('tab-pane-bq');
+  const tabPaneFinops = document.getElementById('tab-pane-finops');
 
   function switchTab(activeTab) {
-    [tabBtnPlayground, tabBtnTelemetry, tabBtnBq].forEach(btn => {
+    [tabBtnPlayground, tabBtnTelemetry, tabBtnBq, tabBtnFinops].forEach(btn => {
       if (btn) btn.classList.remove('active');
     });
-    [tabPanePlayground, tabPaneTelemetry, tabPaneBq].forEach(pane => {
+    [tabPanePlayground, tabPaneTelemetry, tabPaneBq, tabPaneFinops].forEach(pane => {
       if (pane) {
         pane.classList.add('hidden');
         pane.style.display = 'none';
@@ -63,12 +65,24 @@ document.addEventListener('DOMContentLoaded', () => {
       tabPaneBq.classList.remove('hidden');
       tabPaneBq.style.display = 'block';
       loadBqExplorerView();
+    } else if (activeTab === 'finops' && tabBtnFinops && tabPaneFinops) {
+      tabBtnFinops.classList.add('active');
+      tabPaneFinops.classList.remove('hidden');
+      tabPaneFinops.style.display = 'block';
+      loadFinOpsDashboard();
+      setTimeout(() => {
+        if (finopsChartProviderSpend) finopsChartProviderSpend.resize();
+        if (finopsChartAppCost) finopsChartAppCost.resize();
+        if (finopsChartTokenComp) finopsChartTokenComp.resize();
+        if (finopsChartTimeline) finopsChartTimeline.resize();
+      }, 50);
     }
   }
 
   if (tabBtnPlayground) tabBtnPlayground.addEventListener('click', () => switchTab('playground'));
   if (tabBtnTelemetry) tabBtnTelemetry.addEventListener('click', () => switchTab('telemetry'));
   if (tabBtnBq) tabBtnBq.addEventListener('click', () => switchTab('bq'));
+  if (tabBtnFinops) tabBtnFinops.addEventListener('click', () => switchTab('finops'));
 
   // Focus Mode (Collapsible Header & Controls)
   const btnToggleFocusMode = document.getElementById('btn-toggle-focus-mode');
@@ -1443,6 +1457,356 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
+    });
+  }
+
+  // ==========================================
+  // FINOPS EXECUTIVE OVERVIEW ENGINE
+  // ==========================================
+  let finopsChartProviderSpend = null;
+  let finopsChartAppCost = null;
+  let finopsChartTokenComp = null;
+  let finopsChartTimeline = null;
+  let finopsCachedData = null;
+
+  const finopsFilterTimeframe = document.getElementById('finops-filter-timeframe');
+  const finopsFilterProvider = document.getElementById('finops-filter-provider');
+  const btnFinopsRefresh = document.getElementById('btn-finops-refresh');
+  const btnFinopsExportCsv = document.getElementById('btn-finops-export-csv');
+  const btnFinopsExportJson = document.getElementById('btn-finops-export-json');
+  const finopsRollupTableBody = document.getElementById('finops-rollup-table-body');
+  const finopsRollupCountBadge = document.getElementById('finops-rollup-count-badge');
+
+  function initFinOpsCharts() {
+    const ctxProvider = document.getElementById('finops-chart-provider-spend');
+    const ctxApp = document.getElementById('finops-chart-app-cost');
+    const ctxToken = document.getElementById('finops-chart-token-comp');
+    const ctxTimeline = document.getElementById('finops-chart-timeline');
+
+    if (ctxProvider && !finopsChartProviderSpend) {
+      finopsChartProviderSpend = new Chart(ctxProvider, {
+        type: 'doughnut',
+        data: {
+          labels: ['Google Gemini', 'Anthropic Claude', 'OpenAI', 'Other'],
+          datasets: [{
+            data: [0, 0, 0, 0],
+            backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` ${ctx.label}: $${Number(ctx.raw || 0).toFixed(4)}`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    if (ctxApp && !finopsChartAppCost) {
+      finopsChartAppCost = new Chart(ctxApp, {
+        type: 'bar',
+        data: {
+          labels: ['1. Naive Baseline', '2. Context Caching', '3. Compaction', '4. Modular Skills'],
+          datasets: [{
+            label: 'Spend ($)',
+            data: [0, 0, 0, 0],
+            backgroundColor: ['#ef4444', '#10b981', '#f59e0b', '#3b82f6'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` Spend: $${Number(ctx.raw || 0).toFixed(5)}`
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+            y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 11 } } }
+          }
+        }
+      });
+    }
+
+    if (ctxToken && !finopsChartTokenComp) {
+      finopsChartTokenComp = new Chart(ctxToken, {
+        type: 'bar',
+        data: {
+          labels: ['Google Gemini', 'Anthropic Claude', 'OpenAI', 'Other'],
+          datasets: [
+            { label: 'Fresh Input', data: [0, 0, 0, 0], backgroundColor: '#60a5fa', stack: 'tok' },
+            { label: 'Cached Input', data: [0, 0, 0, 0], backgroundColor: '#34d399', stack: 'tok' },
+            { label: 'Output', data: [0, 0, 0, 0], backgroundColor: '#f59e0b', stack: 'tok' },
+            { label: 'Thinking', data: [0, 0, 0, 0], backgroundColor: '#c084fc', stack: 'tok' }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 10 } } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    if (ctxTimeline && !finopsChartTimeline) {
+      finopsChartTimeline = new Chart(ctxTimeline, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Cumulative Spend ($)',
+              data: [],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              fill: true,
+              tension: 0.3,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Daily Spend ($)',
+              data: [],
+              borderColor: '#3b82f6',
+              borderDash: [4, 4],
+              tension: 0.2,
+              yAxisID: 'y'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+  }
+
+  function loadFinOpsDashboard() {
+    initFinOpsCharts();
+    const timeframe = finopsFilterTimeframe ? finopsFilterTimeframe.value : 'all';
+    const provider = finopsFilterProvider ? finopsFilterProvider.value : 'all';
+
+    fetch(`/api/finops/summary?timeframe=${encodeURIComponent(timeframe)}&provider=${encodeURIComponent(provider)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          finopsCachedData = data;
+          updateFinOpsKPIs(data.kpis);
+          updateFinOpsCharts(data);
+          renderFinOpsRollupTable(data.matrix_rows);
+        } else {
+          console.warn('FinOps data load returned error:', data.message);
+        }
+      })
+      .catch(err => console.error('Failed to load FinOps data:', err));
+  }
+
+  function updateFinOpsKPIs(kpis) {
+    if (!kpis) return;
+
+    const elSpend = document.getElementById('finops-kpi-total-spend');
+    const elTurnsSub = document.getElementById('finops-kpi-total-turns-sub');
+    const elTokens = document.getElementById('finops-kpi-total-tokens');
+    const elTokensSub = document.getElementById('finops-kpi-tokens-sub');
+    const elSavings = document.getElementById('finops-kpi-savings');
+    const elSavingsPct = document.getElementById('finops-kpi-savings-pct');
+    const elBlended = document.getElementById('finops-kpi-blended-cost');
+    const elTopProvider = document.getElementById('finops-kpi-top-provider');
+    const elTopProviderShare = document.getElementById('finops-kpi-top-provider-share');
+
+    if (elSpend) elSpend.textContent = '$' + Number(kpis.total_spend || 0).toFixed(4);
+    if (elTurnsSub) elTurnsSub.textContent = `${Number(kpis.total_turns || 0).toLocaleString()} turns logged`;
+    
+    if (elTokens) elTokens.textContent = Number(kpis.total_tokens || 0).toLocaleString();
+    if (elTokensSub) {
+      elTokensSub.textContent = `${Number(kpis.total_input || 0).toLocaleString()} Fresh / ${Number(kpis.total_cached || 0).toLocaleString()} Cached`;
+    }
+
+    if (elSavings) elSavings.textContent = '$' + Number(kpis.optimization_savings_dollars || 0).toFixed(4);
+    if (elSavingsPct) elSavingsPct.textContent = `${Number(kpis.optimization_savings_pct || 0).toFixed(1)}% cost reduction`;
+
+    if (elBlended) elBlended.textContent = '$' + Number(kpis.blended_cost_per_1m || 0).toFixed(3);
+
+    if (elTopProvider) elTopProvider.textContent = kpis.top_provider || 'None';
+    if (elTopProviderShare) elTopProviderShare.textContent = `${Number(kpis.top_provider_share || 0).toFixed(1)}% of total budget`;
+  }
+
+  function updateFinOpsCharts(data) {
+    if (!data) return;
+
+    // 1. Provider Spend Donut
+    if (finopsChartProviderSpend && data.provider_breakdown) {
+      const pb = data.provider_breakdown;
+      const providers = ['Google Gemini', 'Anthropic Claude', 'OpenAI', 'Other'];
+      const spendVals = providers.map(p => (pb[p] ? pb[p].spend : 0));
+      finopsChartProviderSpend.data.datasets[0].data = spendVals;
+      finopsChartProviderSpend.update();
+    }
+
+    // 2. Use Case Architecture Horizontal Bar
+    if (finopsChartAppCost && data.app_breakdown) {
+      const ab = data.app_breakdown;
+      const appKeys = ['naive_app', 'caching_app', 'compaction_app', 'skills_app'];
+      const appNames = ['1. Naive Baseline', '2. Context Caching', '3. Compaction', '4. Modular Skills'];
+      const appSpends = appKeys.map(k => (ab[k] ? ab[k].spend : 0));
+      finopsChartAppCost.data.labels = appNames;
+      finopsChartAppCost.data.datasets[0].data = appSpends;
+      finopsChartAppCost.update();
+    }
+
+    // 3. Token Composition Stacked Bar
+    if (finopsChartTokenComp && data.provider_breakdown) {
+      const pb = data.provider_breakdown;
+      const providers = ['Google Gemini', 'Anthropic Claude', 'OpenAI', 'Other'];
+      finopsChartTokenComp.data.labels = providers;
+      finopsChartTokenComp.data.datasets[0].data = providers.map(p => (pb[p] ? pb[p].input : 0));
+      finopsChartTokenComp.data.datasets[1].data = providers.map(p => (pb[p] ? pb[p].cached : 0));
+      finopsChartTokenComp.data.datasets[2].data = providers.map(p => (pb[p] ? pb[p].output : 0));
+      finopsChartTokenComp.data.datasets[3].data = providers.map(p => (pb[p] ? pb[p].thinking : 0));
+      finopsChartTokenComp.update();
+    }
+
+    // 4. Timeline
+    if (finopsChartTimeline && data.timeline) {
+      const labels = data.timeline.map(t => t.date);
+      const cumCosts = data.timeline.map(t => t.cumulative_cost);
+      const dailyCosts = data.timeline.map(t => t.daily_cost);
+      finopsChartTimeline.data.labels = labels.length > 0 ? labels : ['Today'];
+      finopsChartTimeline.data.datasets[0].data = cumCosts.length > 0 ? cumCosts : [Number(data.kpis.total_spend || 0)];
+      finopsChartTimeline.data.datasets[1].data = dailyCosts.length > 0 ? dailyCosts : [Number(data.kpis.total_spend || 0)];
+      finopsChartTimeline.update();
+    }
+  }
+
+  function renderFinOpsRollupTable(rows) {
+    if (!finopsRollupTableBody) return;
+
+    if (!rows || rows.length === 0) {
+      finopsRollupTableBody.innerHTML = `
+        <tr>
+          <td colspan="12" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">
+            No records matched the selected timeframe and provider filter.
+          </td>
+        </tr>
+      `;
+      if (finopsRollupCountBadge) finopsRollupCountBadge.textContent = '0 Groupings';
+      return;
+    }
+
+    if (finopsRollupCountBadge) {
+      finopsRollupCountBadge.textContent = `${rows.length} Groupings`;
+    }
+
+    let html = '';
+    rows.forEach((r, idx) => {
+      let provBadge = 'badge-primary';
+      if (r.provider === 'Anthropic Claude') provBadge = 'badge-warning';
+      else if (r.provider === 'OpenAI') provBadge = 'badge-success';
+
+      let appDisplay = r.app_name;
+      let appClass = 'badge-primary';
+      if (r.app_name === 'naive_app') { appDisplay = '1. Naive'; appClass = 'badge-danger'; }
+      else if (r.app_name === 'caching_app') { appDisplay = '2. Caching'; appClass = 'badge-success'; }
+      else if (r.app_name === 'compaction_app') { appDisplay = '3. Compaction'; appClass = 'badge-warning'; }
+      else if (r.app_name === 'skills_app') { appDisplay = '4. Modular Skills'; appClass = 'badge-primary'; }
+
+      html += `
+        <tr>
+          <td style="font-family:monospace; color:var(--color-text-muted);">${idx + 1}</td>
+          <td><span class="badge ${provBadge}" style="font-size:0.75rem;">${escapeHtml(r.provider)}</span></td>
+          <td style="font-weight:600; font-size:0.85rem; color:#e2e8f0;">${escapeHtml(r.model_name)}</td>
+          <td><span class="badge ${appClass}" style="font-size:0.75rem;">${escapeHtml(appDisplay)}</span></td>
+          <td style="font-family:monospace; font-size:0.8rem;">${Number(r.turns || 0).toLocaleString()}</td>
+          <td style="font-family:monospace; font-size:0.8rem; color:#60a5fa;">${Number(r.input_tokens || 0).toLocaleString()}</td>
+          <td style="font-family:monospace; font-size:0.8rem; color:#34d399;">${Number(r.cached_tokens || 0).toLocaleString()}</td>
+          <td style="font-family:monospace; font-size:0.8rem; color:#f59e0b;">${Number(r.output_tokens || 0).toLocaleString()}</td>
+          <td style="font-family:monospace; font-size:0.8rem; color:#c084fc;">${Number(r.thinking_tokens || 0).toLocaleString()}</td>
+          <td style="font-family:monospace; font-size:0.8rem; font-weight:600; color:var(--color-text);">${Number(r.total_tokens || 0).toLocaleString()}</td>
+          <td style="font-family:monospace; font-size:0.85rem; font-weight:700; color:var(--color-success);">$${Number(r.total_cost || 0).toFixed(5)}</td>
+          <td style="font-family:monospace; font-size:0.8rem; color:#94a3b8;">${Number(r.spend_share_pct || 0).toFixed(1)}%</td>
+        </tr>
+      `;
+    });
+
+    finopsRollupTableBody.innerHTML = html;
+  }
+
+  if (finopsFilterTimeframe) finopsFilterTimeframe.addEventListener('change', () => loadFinOpsDashboard());
+  if (finopsFilterProvider) finopsFilterProvider.addEventListener('change', () => loadFinOpsDashboard());
+  if (btnFinopsRefresh) btnFinopsRefresh.addEventListener('click', () => loadFinOpsDashboard());
+
+  if (btnFinopsExportCsv) {
+    btnFinopsExportCsv.addEventListener('click', () => {
+      if (!finopsCachedData || !finopsCachedData.matrix_rows || finopsCachedData.matrix_rows.length === 0) {
+        alert('No FinOps data to export.');
+        return;
+      }
+      const headers = ["Provider", "Model", "Use Case", "Turns", "Fresh Input Tokens", "Cached Input Tokens", "Output Tokens", "Thinking Tokens", "Total Tokens", "Total Spend ($)", "Spend Share (%)"];
+      let csv = "data:text/csv;charset=utf-8," + headers.join(",") + "\n";
+      finopsCachedData.matrix_rows.forEach(r => {
+        csv += [
+          `"${r.provider}"`,
+          `"${r.model_name}"`,
+          `"${r.app_name}"`,
+          r.turns,
+          r.input_tokens,
+          r.cached_tokens,
+          r.output_tokens,
+          r.thinking_tokens,
+          r.total_tokens,
+          r.total_cost,
+          r.spend_share_pct
+        ].join(",") + "\n";
+      });
+      const encoded = encodeURI(csv);
+      const a = document.createElement('a');
+      a.setAttribute('href', encoded);
+      a.setAttribute('download', `finops_executive_report_${new Date().toISOString().substring(0, 10)}.csv`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  }
+
+  if (btnFinopsExportJson) {
+    btnFinopsExportJson.addEventListener('click', () => {
+      if (!finopsCachedData) {
+        alert('No FinOps data to export.');
+        return;
+      }
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(finopsCachedData, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute('href', dataStr);
+      a.setAttribute('download', `finops_executive_report_${new Date().toISOString().substring(0, 10)}.json`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     });
   }
 });

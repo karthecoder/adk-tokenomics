@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gemini Agent Token Control Tower</title>
-  <link rel="stylesheet" href="styles.css?v=27">
+  <link rel="stylesheet" href="styles.css?v=30">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="premium-theme">
@@ -122,6 +122,9 @@
       </button>
       <button type="button" id="tab-btn-bq" class="main-tab-btn">
         🗄️ BigQuery Explorer
+      </button>
+      <button type="button" id="tab-btn-finops" class="main-tab-btn">
+        💼 FinOps Executive
       </button>
     </nav>
 
@@ -660,7 +663,207 @@
       </div>
     </div>
   </div>
-  
+
+  <!-- TAB PANE 4: Executive FinOps Overview -->
+  <div id="tab-pane-finops" class="main-tab-pane hidden" style="display:none;">
+    
+    <!-- Top FinOps Header & Controls Bar -->
+    <div class="glass-card" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <h2 style="font-size:1.35rem; font-weight:700; color:var(--color-primary-light); margin-bottom:0.25rem; display:flex; align-items:center; gap:0.5rem;">
+          <span>💼</span> Executive FinOps & AI Unit Economics
+        </h2>
+        <p style="font-size:0.85rem; color:var(--color-text-muted); margin:0;">
+          Macroeconomic visibility into vendor spend, token consumption, context optimization savings, and cost drivers across use cases.
+        </p>
+      </div>
+      
+      <!-- Controls: Timeframe, Provider & Export -->
+      <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:0.4rem;">
+          <label for="finops-filter-timeframe" style="font-size:0.8rem; color:var(--color-text-muted); font-weight:600;">Timeframe:</label>
+          <select id="finops-filter-timeframe" class="select-premium" style="padding:0.4rem 0.75rem; font-size:0.8rem; width:130px;">
+            <option value="all" selected>All Time</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="today">Today</option>
+          </select>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:0.4rem;">
+          <label for="finops-filter-provider" style="font-size:0.8rem; color:var(--color-text-muted); font-weight:600;">Provider:</label>
+          <select id="finops-filter-provider" class="select-premium" style="padding:0.4rem 0.75rem; font-size:0.8rem; width:145px;">
+            <option value="all" selected>All Providers</option>
+            <option value="google">Google Gemini</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+
+        <button type="button" id="btn-finops-refresh" class="btn" style="padding:0.45rem 0.9rem; font-size:0.8rem; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); border-radius:8px; cursor:pointer; font-weight:600;">
+          🔄 Refresh
+        </button>
+        <button type="button" id="btn-finops-export-csv" class="btn" style="padding:0.45rem 0.9rem; font-size:0.8rem; background:rgba(16,185,129,0.15); color:#a7f3d0; border:1px solid rgba(16,185,129,0.3); border-radius:8px; cursor:pointer; font-weight:600;">
+          📥 Export CSV
+        </button>
+        <button type="button" id="btn-finops-export-json" class="btn" style="padding:0.45rem 0.9rem; font-size:0.8rem; background:rgba(245,158,11,0.15); color:#fde68a; border:1px solid rgba(245,158,11,0.3); border-radius:8px; cursor:pointer; font-weight:600;">
+          📋 Export JSON
+        </button>
+      </div>
+    </div>
+
+    <!-- Top Executive 5-KPI Banner -->
+    <section class="kpi-row" style="margin-bottom: 1.5rem; display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:1rem;">
+      <!-- KPI 1: Total Spend -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper kpi-primary">💵</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Total AI Spend</span>
+          <div class="kpi-value" id="finops-kpi-total-spend">$0.00</div>
+          <span class="kpi-trend trend-neutral" id="finops-kpi-total-turns-sub">0 turns logged</span>
+        </div>
+      </div>
+
+      <!-- KPI 2: Total Tokens -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper kpi-success">🔢</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Total Tokens Consumed</span>
+          <div class="kpi-value" id="finops-kpi-total-tokens">0</div>
+          <span class="kpi-trend trend-positive" id="finops-kpi-tokens-sub">In / Cached / Out / Think</span>
+        </div>
+      </div>
+
+      <!-- KPI 3: Optimization ROI Savings -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper kpi-warning">💡</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Context Savings Realized</span>
+          <div class="kpi-value" id="finops-kpi-savings" style="color:var(--color-success);">$0.00</div>
+          <span class="kpi-trend trend-positive" id="finops-kpi-savings-pct">0.0% cost reduction</span>
+        </div>
+      </div>
+
+      <!-- KPI 4: Blended Unit Cost -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper kpi-info">🏷️</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Blended Cost / 1M Tokens</span>
+          <div class="kpi-value" id="finops-kpi-blended-cost">$0.00</div>
+          <span class="kpi-trend trend-neutral">Macro Benchmark</span>
+        </div>
+      </div>
+
+      <!-- KPI 5: Top Provider Spend Share -->
+      <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper kpi-primary">🏆</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Primary Vendor</span>
+          <div class="kpi-value" id="finops-kpi-top-provider" style="font-size:1.15rem;">None</div>
+          <span class="kpi-trend trend-neutral" id="finops-kpi-top-provider-share">0.0% of total budget</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Executive Quad-Chart Grid (2x2) -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap:1.25rem; margin-bottom: 1.5rem;">
+      
+      <!-- Chart 1: Provider Spend Share (Donut) -->
+      <div class="glass-card" style="padding:1.25rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <h4 style="font-size:0.95rem; font-weight:700; color:var(--color-text); margin:0;">
+            🍩 Provider Spend Distribution ($)
+          </h4>
+          <span style="font-size:0.75rem; color:var(--color-text-muted);">Share of Spend</span>
+        </div>
+        <div style="height:240px; position:relative;">
+          <canvas id="finops-chart-provider-spend"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: Use Case Cost Comparison (Bar) -->
+      <div class="glass-card" style="padding:1.25rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <h4 style="font-size:0.95rem; font-weight:700; color:var(--color-text); margin:0;">
+            📊 Use Case Architecture Cost ($)
+          </h4>
+          <span style="font-size:0.75rem; color:var(--color-text-muted);">Spend by Scenario</span>
+        </div>
+        <div style="height:240px; position:relative;">
+          <canvas id="finops-chart-app-cost"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 3: Token Composition by Provider (Stacked Bar) -->
+      <div class="glass-card" style="padding:1.25rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <h4 style="font-size:0.95rem; font-weight:700; color:var(--color-text); margin:0;">
+            🥞 Token Composition by Provider
+          </h4>
+          <span style="font-size:0.75rem; color:var(--color-text-muted);">Prompt vs Cached vs Out vs Think</span>
+        </div>
+        <div style="height:240px; position:relative;">
+          <canvas id="finops-chart-token-comp"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 4: Cumulative Spend Timeline (Line) -->
+      <div class="glass-card" style="padding:1.25rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <h4 style="font-size:0.95rem; font-weight:700; color:var(--color-text); margin:0;">
+            📈 Cumulative Spend & Daily Trend ($)
+          </h4>
+          <span style="font-size:0.75rem; color:var(--color-text-muted);">Daily vs Cumulative</span>
+        </div>
+        <div style="height:240px; position:relative;">
+          <canvas id="finops-chart-timeline"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Multi-Dimensional Executive Rollup Table -->
+    <div class="glass-card table-card" style="margin-bottom: 2rem;">
+      <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+        <div>
+          <h3 class="panel-title" style="color:var(--color-primary-light); display:flex; align-items:center; gap:0.5rem;">
+            <span>📋</span> Multi-Dimensional Rollup Ledger: Provider × Use Case
+          </h3>
+          <p class="panel-subtitle">Executive financial audit breakdown by model provider, architecture scenario, and token category</p>
+        </div>
+        <span id="finops-rollup-count-badge" class="badge badge-primary" style="font-size:0.8rem;">0 Groupings</span>
+      </div>
+      <div class="table-container" style="max-height: 480px; overflow-y: auto;">
+        <table class="premium-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Provider</th>
+              <th>Model</th>
+              <th>Use Case Architecture</th>
+              <th>Turns</th>
+              <th>Fresh Input</th>
+              <th>Cached Input</th>
+              <th>Output Tokens</th>
+              <th>Thinking Tokens</th>
+              <th>Total Tokens</th>
+              <th>Spend ($)</th>
+              <th>Budget Share (%)</th>
+            </tr>
+          </thead>
+          <tbody id="finops-rollup-table-body">
+            <tr>
+              <td colspan="12" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">
+                Loading FinOps rollup data...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
   <!-- Model Management Modal -->
   <div id="model-modal-overlay" class="modal-overlay hidden" style="display:none;">
     <div class="modal-card glass-card">
@@ -799,6 +1002,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=28"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>

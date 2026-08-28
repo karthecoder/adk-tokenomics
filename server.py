@@ -589,6 +589,264 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             print(f"[ERROR] fetch_bq_stats: {e}", flush=True)
             return {"total_turns": 0, "total_cost": 0.0, "total_input": 0, "total_cached": 0, "total_output": 0, "unique_sessions": 0}
 
+    def fetch_finops_summary(self, timeframe='all', provider='all'):
+        from google.cloud import bigquery
+        from google.cloud.exceptions import NotFound
+        
+        try:
+            client = bigquery.Client()
+            project = client.project
+            dataset_id = "bq_adk_ds"
+            try:
+                client.get_dataset(f"{project}.{dataset_id}")
+            except NotFound:
+                dataset_id = "karticn_adk_demo"
+                try:
+                    client.get_dataset(f"{project}.{dataset_id}")
+                except NotFound:
+                    return self._empty_finops_summary()
+                    
+            table_id = "token_consumption_logs"
+            full_table_id = f"{project}.{dataset_id}.{table_id}"
+            
+            try:
+                client.get_table(full_table_id)
+            except NotFound:
+                return self._empty_finops_summary()
+
+            # Build WHERE clauses
+            where_clauses = ["1=1"]
+            query_params = []
+
+            # Timeframe filter
+            if timeframe == 'today':
+                where_clauses.append("DATE(timestamp) = CURRENT_DATE()")
+            elif timeframe == '7d':
+                where_clauses.append("timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)")
+            elif timeframe == '30d':
+                where_clauses.append("timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)")
+
+            # Provider filter
+            if provider and provider != 'all':
+                provider_lower = provider.lower()
+                if 'google' in provider_lower or 'gemini' in provider_lower:
+                    where_clauses.append("LOWER(model_name) LIKE '%gemini%'")
+                elif 'anthropic' in provider_lower or 'claude' in provider_lower:
+                    where_clauses.append("LOWER(model_name) LIKE '%claude%'")
+                elif 'openai' in provider_lower or 'gpt' in provider_lower:
+                    where_clauses.append("LOWER(model_name) LIKE '%gpt%'")
+
+            where_sql = " AND ".join(where_clauses)
+
+            # Query 1: Detailed Groupings by (model_name, app_name)
+            query_groups = f"""
+                SELECT 
+                    COALESCE(model_name, 'Gemini 3.5 Flash') as model_name,
+                    COALESCE(app_name, 'naive_app') as app_name,
+                    COUNT(*) as turns,
+                    COALESCE(SUM(prompt_tokens), 0) as input_tokens,
+                    COALESCE(SUM(cached_tokens), 0) as cached_tokens,
+                    COALESCE(SUM(output_tokens), 0) as output_tokens,
+                    COALESCE(SUM(thinking_tokens), 0) as thinking_tokens,
+                    COALESCE(SUM(estimated_cost), 0.0) as total_cost
+                FROM `{full_table_id}`
+                WHERE {where_sql}
+                GROUP BY 1, 2
+                ORDER BY total_cost DESC
+            """
+            job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+            group_rows = list(client.query(query_groups, job_config=job_config).result())
+
+            # Query 2: Timeline Aggregations by Day
+            query_timeline = f"""
+                SELECT 
+                    FORMAT_TIMESTAMP('%Y-%m-%d', timestamp) as date_label,
+                    COUNT(*) as turns,
+                    COALESCE(SUM(prompt_tokens + cached_tokens + output_tokens + thinking_tokens), 0) as daily_tokens,
+                    COALESCE(SUM(estimated_cost), 0.0) as daily_cost
+                FROM `{full_table_id}`
+                WHERE {where_sql}
+                GROUP BY 1
+                ORDER BY 1 ASC
+            """
+            timeline_rows = list(client.query(query_timeline, job_config=job_config).result())
+
+            # Aggregate Metrics
+            total_spend = 0.0
+            total_input = 0
+            total_cached = 0
+            total_output = 0
+            total_thinking = 0
+            total_turns = 0
+            
+            provider_breakdown = {
+                "Google Gemini": {"spend": 0.0, "turns": 0, "input": 0, "cached": 0, "output": 0, "thinking": 0},
+                "Anthropic Claude": {"spend": 0.0, "turns": 0, "input": 0, "cached": 0, "output": 0, "thinking": 0},
+                "OpenAI": {"spend": 0.0, "turns": 0, "input": 0, "cached": 0, "output": 0, "thinking": 0},
+                "Other": {"spend": 0.0, "turns": 0, "input": 0, "cached": 0, "output": 0, "thinking": 0}
+            }
+
+            app_breakdown = {
+                "naive_app": {"name": "1. Naive Baseline", "spend": 0.0, "turns": 0, "tokens": 0},
+                "caching_app": {"name": "2. Context Caching", "spend": 0.0, "turns": 0, "tokens": 0},
+                "compaction_app": {"name": "3. Events Compaction", "spend": 0.0, "turns": 0, "tokens": 0},
+                "skills_app": {"name": "4. Modular Skills", "spend": 0.0, "turns": 0, "tokens": 0}
+            }
+
+            matrix_rows = []
+
+            for r in group_rows:
+                m_name = getattr(r, 'model_name', 'Gemini 3.5 Flash') or 'Gemini 3.5 Flash'
+                a_name = getattr(r, 'app_name', 'naive_app') or 'naive_app'
+                t_count = int(getattr(r, 'turns', 0) or 0)
+                inp = int(getattr(r, 'input_tokens', 0) or 0)
+                cac = int(getattr(r, 'cached_tokens', 0) or 0)
+                out = int(getattr(r, 'output_tokens', 0) or 0)
+                thk = int(getattr(r, 'thinking_tokens', 0) or 0)
+                cost = float(getattr(r, 'total_cost', 0.0) or 0.0)
+                tot_tok = inp + cac + out + thk
+
+                total_spend += cost
+                total_input += inp
+                total_cached += cac
+                total_output += out
+                total_thinking += thk
+                total_turns += t_count
+
+                # Classify provider
+                m_lower = m_name.lower()
+                if 'claude' in m_lower or 'anthropic' in m_lower:
+                    prov = "Anthropic Claude"
+                elif 'gpt' in m_lower or 'openai' in m_lower:
+                    prov = "OpenAI"
+                elif 'gemini' in m_lower or 'google' in m_lower:
+                    prov = "Google Gemini"
+                else:
+                    prov = "Google Gemini" if ('flash' in m_lower or 'pro' in m_lower) else "Other"
+
+                provider_breakdown[prov]["spend"] += cost
+                provider_breakdown[prov]["turns"] += t_count
+                provider_breakdown[prov]["input"] += inp
+                provider_breakdown[prov]["cached"] += cac
+                provider_breakdown[prov]["output"] += out
+                provider_breakdown[prov]["thinking"] += thk
+
+                # App breakdown
+                if a_name in app_breakdown:
+                    app_breakdown[a_name]["spend"] += cost
+                    app_breakdown[a_name]["turns"] += t_count
+                    app_breakdown[a_name]["tokens"] += tot_tok
+                else:
+                    app_breakdown[a_name] = {"name": a_name, "spend": cost, "turns": t_count, "tokens": tot_tok}
+
+                matrix_rows.append({
+                    "provider": prov,
+                    "model_name": m_name,
+                    "app_name": a_name,
+                    "turns": t_count,
+                    "input_tokens": inp,
+                    "cached_tokens": cac,
+                    "output_tokens": out,
+                    "thinking_tokens": thk,
+                    "total_tokens": tot_tok,
+                    "total_cost": round(cost, 5),
+                    "spend_share_pct": 0.0
+                })
+
+            # Calculate spend shares
+            for row in matrix_rows:
+                row["spend_share_pct"] = round((row["total_cost"] / total_spend * 100), 1) if total_spend > 0 else 0.0
+
+            total_tokens = total_input + total_cached + total_output + total_thinking
+            blended_cost_per_1m = round((total_spend / total_tokens * 1000000), 3) if total_tokens > 0 else 0.0
+
+            # Find top provider
+            top_provider = "None"
+            top_provider_share = 0.0
+            top_spend = -1.0
+            for prov_k, prov_v in provider_breakdown.items():
+                if prov_v["spend"] > top_spend and prov_v["spend"] > 0:
+                    top_spend = prov_v["spend"]
+                    top_provider = prov_k
+                    top_provider_share = round((top_spend / total_spend * 100), 1) if total_spend > 0 else 0.0
+
+            # Calculate Context Optimization Savings:
+            cached_token_savings = (total_cached / 1000000.0) * (0.30 - 0.075)
+            optimization_savings_dollars = max(0.0, round(cached_token_savings, 4))
+            theoretical_baseline_spend = total_spend + optimization_savings_dollars
+            optimization_savings_pct = round((optimization_savings_dollars / theoretical_baseline_spend * 100), 1) if theoretical_baseline_spend > 0 else 0.0
+
+            # Build timeline list
+            timeline_list = []
+            cum_cost = 0.0
+            for tr in timeline_rows:
+                d_label = getattr(tr, 'date_label', '') or ''
+                d_cost = float(getattr(tr, 'daily_cost', 0.0) or 0.0)
+                d_toks = int(getattr(tr, 'daily_tokens', 0) or 0)
+                cum_cost += d_cost
+                timeline_list.append({
+                    "date": d_label,
+                    "daily_cost": round(d_cost, 5),
+                    "daily_tokens": d_toks,
+                    "cumulative_cost": round(cum_cost, 5)
+                })
+
+            return {
+                "status": "success",
+                "timeframe": timeframe,
+                "provider": provider,
+                "kpis": {
+                    "total_spend": round(total_spend, 5),
+                    "total_tokens": total_tokens,
+                    "total_input": total_input,
+                    "total_cached": total_cached,
+                    "total_output": total_output,
+                    "total_thinking": total_thinking,
+                    "total_turns": total_turns,
+                    "blended_cost_per_1m": blended_cost_per_1m,
+                    "top_provider": top_provider,
+                    "top_provider_share": top_provider_share,
+                    "optimization_savings_dollars": optimization_savings_dollars,
+                    "optimization_savings_pct": optimization_savings_pct
+                },
+                "provider_breakdown": provider_breakdown,
+                "app_breakdown": app_breakdown,
+                "timeline": timeline_list,
+                "matrix_rows": matrix_rows
+            }
+        except Exception as e:
+            print(f"[ERROR] fetch_finops_summary: {e}", flush=True)
+            return self._empty_finops_summary(error=str(e))
+
+    def _empty_finops_summary(self, error=None):
+        return {
+            "status": "error" if error else "success",
+            "message": error or "No data found",
+            "kpis": {
+                "total_spend": 0.0,
+                "total_tokens": 0,
+                "total_input": 0,
+                "total_cached": 0,
+                "total_output": 0,
+                "total_thinking": 0,
+                "total_turns": 0,
+                "blended_cost_per_1m": 0.0,
+                "top_provider": "None",
+                "top_provider_share": 0.0,
+                "optimization_savings_dollars": 0.0,
+                "optimization_savings_pct": 0.0
+            },
+            "provider_breakdown": {
+                "Google Gemini": {"spend": 0.0, "turns": 0, "input": 0, "cached": 0, "output": 0, "thinking": 0},
+                "Anthropic Claude": {"spend": 0.0, "turns": 0, "input": 0, "cached": 0, "output": 0, "thinking": 0},
+                "OpenAI": {"spend": 0.0, "turns": 0, "input": 0, "cached": 0, "output": 0, "thinking": 0},
+                "Other": {"spend": 0.0, "turns": 0, "input": 0, "cached": 0, "output": 0, "thinking": 0}
+            },
+            "app_breakdown": {},
+            "timeline": [],
+            "matrix_rows": []
+        }
+
     def clear_bq_table(self):
         from google.cloud import bigquery
         from google.cloud.exceptions import NotFound
@@ -775,6 +1033,16 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(stats).encode('utf-8'))
+
+        elif path == '/api/finops/summary':
+            timeframe = query_params.get('timeframe', ['all'])[0]
+            provider = query_params.get('provider', ['all'])[0]
+            summary = self.fetch_finops_summary(timeframe=timeframe, provider=provider)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(summary).encode('utf-8'))
 
         else:
             super().do_GET()
