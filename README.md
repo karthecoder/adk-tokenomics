@@ -1,8 +1,35 @@
-# Agent Tokenomics & Context Optimization Sandbox
+# Agent Tokenomics & Context Optimization Framework (Plug & Play)
 
-Welcome to the **Agent Tokenomics & Context Optimization Sandbox**! This workspace is designed to demonstrate, benchmark, and visualize the impact of different context management techniques in generative AI agents. 
+Welcome to the **Agent Tokenomics & Token Control Tower Framework**! This workspace provides a turnkey, reusable Python framework + interactive Web Control Tower to measure, optimize, and assert LLM token economics across **Prototyping**, **Development**, **CI/CD Testing**, and **Production FinOps**.
 
-Using **Google Gemini** and the **Agent Development Kit (ADK)**, this sandbox provides a side-by-side comparison of four different agent architectures: Naive Monolithic, Context Caching, History Compaction, and Modular Skills.
+📖 **[Read the Complete Plug & Play Framework Guide (PLUG_AND_PLAY_FRAMEWORK_GUIDE.md)](file:///Users/karticn/tokenomics/PLUG_AND_PLAY_FRAMEWORK_GUIDE.md)**
+
+---
+
+## ⚡ 1-Line Plug & Play Quickstart
+
+```python
+from tokenomics import TokenControlTower
+
+# 1. Initialize Control Tower for your agent lifecycle
+tower = TokenControlTower(mode="prototype")
+
+# 2. Track turns from any agent or ADK runner
+tower.track_turn(
+    session_id="customer_session_1",
+    app_name="support_bot",
+    model_name="publishers/google/models/gemini-3.5-flash",
+    user_query="How do I reduce my token bill?",
+    agent_response="By implementing Context Caching and History Compaction...",
+    input_tokens=5000,
+    cached_tokens=25000,
+    output_tokens=450,
+    thinking_tokens=100
+)
+
+# 3. Launch the interactive local Web Control Tower on localhost:8080
+tower.launch_ui(port=8080)
+```
 
 ---
 
