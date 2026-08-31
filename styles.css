@@ -6,16 +6,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-main: #060813;
-  --bg-surface: rgba(16, 24, 48, 0.45);
-  --bg-card-hover: rgba(22, 32, 64, 0.6);
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-color-glow: rgba(59, 130, 246, 0.25);
+  --bg-main: #070b14;
+  --bg-surface: rgba(13, 20, 38, 0.62);
+  --bg-card-hover: rgba(20, 30, 58, 0.75);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-glow: rgba(147, 51, 234, 0.35);
   
-  --color-primary: #3b82f6;      /* Cobalt Neon */
+  --color-primary: #3b82f6;      /* Gemini Blue */
+  --color-primary-light: #60a5fa;
+  --color-accent: #a855f7;       /* Gemini Purple */
   --color-success: #10b981;      /* Emerald Glow */
   --color-warning: #f59e0b;      /* Sunset Amber */
   --color-danger: #f43f5e;       /* Neon Red */
+  
+  --gemini-blue: #1a73e8;
+  --gemini-purple: #9333ea;
+  --gemini-pink: #ec4899;
+  --gemini-cyan: #06b6d4;
+  --gemini-gradient: linear-gradient(135deg, #1a73e8 0%, #9333ea 50%, #ec4899 100%);
+  --gemini-gradient-subtle: linear-gradient(135deg, rgba(26, 115, 232, 0.18), rgba(147, 51, 234, 0.18));
   
   --color-text: #f8fafc;         /* High contrast slate */
   --color-text-muted: #94a3b8;   /* Muted slate */
@@ -40,32 +49,59 @@ body.premium-theme {
   position: relative;
   line-height: 1.5;
   background-image: 
-    radial-gradient(circle at 50% 0%, rgba(29, 78, 216, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 10% 40%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(245, 158, 11, 0.05) 0%, transparent 45%);
+    radial-gradient(circle at 15% 10%, rgba(26, 115, 232, 0.22) 0%, transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(147, 51, 234, 0.24) 0%, transparent 45%),
+    radial-gradient(circle at 50% 60%, rgba(236, 72, 153, 0.14) 0%, transparent 50%),
+    radial-gradient(circle at 80% 85%, rgba(6, 182, 212, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 20% 90%, rgba(26, 115, 232, 0.15) 0%, transparent 45%);
   background-attachment: fixed;
 }
 
-/* Ambient Glowing Blobs */
+/* Ambient Glowing Blobs with Gemini Aurora Pulse */
 .glow-blob {
   position: fixed;
-  width: 30vw;
-  height: 30vw;
+  width: 38vw;
+  height: 38vw;
   border-radius: 50%;
-  filter: blur(140px);
+  filter: blur(130px);
   z-index: -1;
-  opacity: 0.18;
+  opacity: 0.28;
   pointer-events: none;
+  will-change: transform, opacity;
 }
 .blob-blue {
-  top: -10%;
-  left: 20%;
-  background: var(--color-primary);
+  top: -12%;
+  left: 15%;
+  background: radial-gradient(circle, #1a73e8 0%, #3b82f6 60%, transparent 80%);
+  animation: floatBlobBlue 22s ease-in-out infinite alternate;
 }
-.blob-green {
-  bottom: 10%;
-  right: 15%;
-  background: var(--color-success);
+.blob-purple {
+  top: 15%;
+  right: 5%;
+  background: radial-gradient(circle, #9333ea 0%, #a855f7 60%, transparent 80%);
+  animation: floatBlobPurple 26s ease-in-out infinite alternate;
+}
+.blob-pink {
+  bottom: -10%;
+  left: 35%;
+  background: radial-gradient(circle, #ec4899 0%, #f43f5e 60%, transparent 80%);
+  animation: floatBlobPink 24s ease-in-out infinite alternate;
+}
+
+@keyframes floatBlobBlue {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.28; }
+  50% { transform: translate3d(4vw, 5vh, 0) scale(1.1); opacity: 0.38; }
+  100% { transform: translate3d(-3vw, 8vh, 0) scale(0.95); opacity: 0.25; }
+}
+@keyframes floatBlobPurple {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.30; }
+  50% { transform: translate3d(-5vw, -4vh, 0) scale(1.15); opacity: 0.40; }
+  100% { transform: translate3d(3vw, 6vh, 0) scale(0.9); opacity: 0.26; }
+}
+@keyframes floatBlobPink {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.22; }
+  50% { transform: translate3d(-4vw, -6vh, 0) scale(1.1); opacity: 0.32; }
+  100% { transform: translate3d(5vw, -2vh, 0) scale(1.0); opacity: 0.20; }
 }
 
 /* Container Structure */
@@ -83,16 +119,16 @@ body.premium-theme {
 /* Translucent Glassmorphic Cards */
 .glass-card {
   background: var(--bg-surface);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
   transition: var(--transition-smooth);
 }
 .glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  border-color: rgba(147, 51, 234, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 15px rgba(26, 115, 232, 0.15);
 }
 
 /* Top Navbar */
@@ -210,10 +246,10 @@ body.premium-theme {
 }
 
 .main-tab-btn.active {
-  background: linear-gradient(135deg, var(--color-primary), #6366f1);
+  background: var(--gemini-gradient);
   color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.35);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 20px rgba(147, 51, 234, 0.4), 0 0 12px rgba(26, 115, 232, 0.3);
 }
 
 /* Tab Panes */
