@@ -912,12 +912,12 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 query_groups = f"""
                     SELECT 
                         COALESCE(model_version, 'Gemini 3.5 Flash') as model_name,
-                        COALESCE(JSON_VALUE(attributes, '$.session_metadata.app_name'), agent, 'app') as app_name,
+                        COALESCE(agent, 'default_app') as app_name,
                         COUNT(*) as turns,
                         COALESCE(SUM(usage_prompt_tokens), 0) as input_tokens,
                         COALESCE(SUM(usage_cached_tokens), 0) as cached_tokens,
                         COALESCE(SUM(usage_completion_tokens), 0) as output_tokens,
-                        COALESCE(SUM(CAST(JSON_VALUE(attributes, '$.usage_metadata.thoughts_token_count') AS INT64)), 0) as thinking_tokens
+                        COALESCE(SUM(CAST(JSON_VALUE(usage_metadata, '$.thoughts_token_count') AS INT64)), 0) as thinking_tokens
                     FROM `{full_view_id}`
                     WHERE {where_sql}
                     GROUP BY 1, 2
@@ -926,12 +926,12 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                     SELECT 
                         FORMAT_TIMESTAMP('%Y-%m-%d', timestamp) as date_label,
                         COUNT(*) as turns,
-                        COALESCE(SUM(usage_prompt_tokens + COALESCE(usage_cached_tokens,0) + usage_completion_tokens + COALESCE(CAST(JSON_VALUE(attributes, '$.usage_metadata.thoughts_token_count') AS INT64),0)), 0) as daily_tokens,
+                        COALESCE(SUM(usage_prompt_tokens + COALESCE(usage_cached_tokens,0) + usage_completion_tokens + COALESCE(CAST(JSON_VALUE(usage_metadata, '$.thoughts_token_count') AS INT64),0)), 0) as daily_tokens,
                         COALESCE(model_version, 'Gemini 3.5 Flash') as model_name,
                         COALESCE(SUM(usage_prompt_tokens), 0) as input_tokens,
                         COALESCE(SUM(usage_cached_tokens), 0) as cached_tokens,
                         COALESCE(SUM(usage_completion_tokens), 0) as output_tokens,
-                        COALESCE(SUM(CAST(JSON_VALUE(attributes, '$.usage_metadata.thoughts_token_count') AS INT64)), 0) as thinking_tokens
+                        COALESCE(SUM(CAST(JSON_VALUE(usage_metadata, '$.thoughts_token_count') AS INT64)), 0) as thinking_tokens
                     FROM `{full_view_id}`
                     WHERE {where_sql}
                     GROUP BY 1, 4
