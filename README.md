@@ -1,5 +1,8 @@
 # Agent Tokenomics & Context Optimization Framework (Plug & Play)
 
+> 🚀 **Looking for the standalone production FinOps & BigQuery Control Tower?**  
+> Check out the dedicated companion repository: **[`adk-tokenomics-plugin`](https://github.com/karthecoder/adk-tokenomics-plugin)**.
+
 Welcome to the **Agent Tokenomics & Token Control Tower Framework**! This workspace provides a turnkey, reusable Python framework + interactive Web Control Tower to measure, optimize, and assert LLM token economics across **Prototyping**, **Development**, **CI/CD Testing**, and **Production FinOps**.
 
 📖 **[Read the Complete Plug & Play Framework Guide (PLUG_AND_PLAY_FRAMEWORK_GUIDE.md)](file:///Users/karticn/tokenomics/PLUG_AND_PLAY_FRAMEWORK_GUIDE.md)**  
