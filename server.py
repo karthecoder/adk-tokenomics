@@ -773,6 +773,194 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 "offset": offset
             }
 
+    def fetch_bq_turns(self, app_name=None, search=None, limit=50, offset=0, dataset=None, table=None):
+        from google.cloud import bigquery
+        from google.cloud.exceptions import NotFound
+        cfg = shared_logic.load_models_config()
+        
+        try:
+            client = bigquery.Client()
+            project = self.ACTIVE_BQ_CONFIG["project_id"] or client.project
+            dataset_id = dataset or self.ACTIVE_BQ_CONFIG["dataset_id"] or "bq_adk_ds"
+            table_id = table or self.ACTIVE_BQ_CONFIG["table_id"] or "adk_agent_events"
+            view_id = self.ACTIVE_BQ_CONFIG["view_id"] or "v_llm_response"
+            
+            full_events_table = f"{project}.{dataset_id}.{table_id}"
+            full_view_table = f"{project}.{dataset_id}.{view_id}"
+            
+            try:
+                client.get_dataset(f"{project}.{dataset_id}")
+            except NotFound:
+                return {"status": "error", "message": f"Dataset {dataset_id} not found", "total_rows": 0, "rows": []}
+                
+            is_adk = False
+            try:
+                client.get_table(full_view_table)
+                client.get_table(full_events_table)
+                is_adk = True
+            except NotFound:
+                pass
+                
+            if is_adk:
+                where_conditions = ["u.event_type = 'USER_MESSAGE_RECEIVED'"]
+                params = []
+                
+                if app_name and app_name != 'all':
+                    where_conditions.append("(r.agent = @app_name OR LOWER(r.agent) LIKE @app_like)")
+                    params.append(bigquery.ScalarQueryParameter("app_name", "STRING", app_name))
+                    params.append(bigquery.ScalarQueryParameter("app_like", "STRING", f"%{app_name.lower()}%"))
+                    
+                if search and search.strip():
+                    where_conditions.append("(LOWER(JSON_VALUE(u.content, '$.text_summary')) LIKE @search OR LOWER(r.response) LIKE @search OR LOWER(r.session_id) LIKE @search OR LOWER(r.invocation_id) LIKE @search)")
+                    params.append(bigquery.ScalarQueryParameter("search", "STRING", f"%{search.strip().lower()}%"))
+                    
+                where_clause = "WHERE " + " AND ".join(where_conditions)
+                
+                count_sql = f"""
+                    SELECT COUNT(*) as total
+                    FROM `{full_events_table}` u
+                    INNER JOIN `{full_view_table}` r
+                        ON u.session_id = r.session_id AND u.invocation_id = r.invocation_id
+                    {where_clause}
+                """
+                count_job = client.query(count_sql, job_config=bigquery.QueryJobConfig(query_parameters=params))
+                count_res = list(count_job.result())
+                total_count = count_res[0].total if count_res else 0
+                
+                data_sql = f"""
+                    SELECT 
+                        u.timestamp as prompt_time,
+                        r.timestamp as response_time,
+                        r.agent as app_name,
+                        COALESCE(r.model_version, 'gemini-3.7-flash') as model_name,
+                        r.session_id,
+                        r.invocation_id,
+                        JSON_VALUE(u.content, '$.text_summary') as user_query,
+                        r.response as agent_response,
+                        r.usage_prompt_tokens as prompt_tokens,
+                        COALESCE(r.usage_cached_tokens, 0) as cached_tokens,
+                        r.usage_completion_tokens as output_tokens,
+                        COALESCE(CAST(JSON_VALUE(r.usage_metadata, '$.thoughts_token_count') AS INT64), 0) as thinking_tokens,
+                        r.usage_total_tokens as total_tokens,
+                        COALESCE(r.context_cache_hit_rate, 0.0) as cache_hit_rate,
+                        r.total_ms as latency_ms
+                    FROM `{full_events_table}` u
+                    INNER JOIN `{full_view_table}` r
+                        ON u.session_id = r.session_id AND u.invocation_id = r.invocation_id
+                    {where_clause}
+                    ORDER BY r.timestamp DESC
+                    LIMIT @limit OFFSET @offset
+                """
+                data_params = list(params)
+                data_params.append(bigquery.ScalarQueryParameter("limit", "INT64", limit))
+                data_params.append(bigquery.ScalarQueryParameter("offset", "INT64", offset))
+                
+                data_job = client.query(data_sql, job_config=bigquery.QueryJobConfig(query_parameters=data_params))
+                results = data_job.result()
+                
+                rows = []
+                for r in results:
+                    inp = int(r.prompt_tokens or 0)
+                    cac = int(r.cached_tokens or 0)
+                    out = int(r.output_tokens or 0)
+                    thk = int(r.thinking_tokens or 0)
+                    cost_res = self._calc_model_cost(r.model_name, inp, cac, out, thk, cfg)
+                    
+                    resp_str = str(r.agent_response or "")
+                    if resp_str.startswith("text: '") or resp_str.startswith('text: "'):
+                        clean_resp = resp_str[7:-1].encode().decode('unicode_escape', 'ignore')
+                    else:
+                        clean_resp = resp_str
+                        
+                    rows.append({
+                        "prompt_time": r.prompt_time.isoformat() if hasattr(r.prompt_time, "isoformat") else str(r.prompt_time),
+                        "response_time": r.response_time.isoformat() if hasattr(r.response_time, "isoformat") else str(r.response_time),
+                        "session_id": str(r.session_id),
+                        "invocation_id": str(r.invocation_id),
+                        "app_name": str(r.app_name),
+                        "model_name": str(r.model_name),
+                        "user_query": str(r.user_query or ""),
+                        "agent_response": clean_resp,
+                        "prompt_tokens": inp,
+                        "cached_tokens": cac,
+                        "output_tokens": out,
+                        "thinking_tokens": thk,
+                        "total_tokens": int(r.total_tokens or (inp + cac + out + thk)),
+                        "cache_hit_rate": float(r.cache_hit_rate or 0.0),
+                        "latency_ms": int(r.latency_ms or 0),
+                        "estimated_cost": round(cost_res["total_cost"], 5),
+                        "savings_dollars": round(cost_res["savings_dollars"], 5),
+                        "raw_json": json.dumps({
+                            "prompt_time": str(r.prompt_time),
+                            "response_time": str(r.response_time),
+                            "session_id": r.session_id,
+                            "invocation_id": r.invocation_id,
+                            "app_name": r.app_name,
+                            "model_name": r.model_name,
+                            "user_query": r.user_query,
+                            "agent_response": clean_resp,
+                            "tokens": {
+                                "fresh_input": inp,
+                                "cached_input": cac,
+                                "output": out,
+                                "thinking": thk,
+                                "total": r.total_tokens
+                            },
+                            "cache_hit_rate": r.cache_hit_rate,
+                            "latency_ms": r.latency_ms,
+                            "cost": cost_res
+                        }, indent=2)
+                    })
+                    
+                return {
+                    "status": "success",
+                    "total_rows": total_count,
+                    "limit": limit,
+                    "offset": offset,
+                    "rows": rows
+                }
+            else:
+                legacy_res = self.fetch_bq_explorer_logs(app_name=app_name, search=search, limit=limit, offset=offset, dataset=dataset, table=table)
+                turn_rows = []
+                for r in legacy_res.get("rows", []):
+                    turn_rows.append({
+                        "prompt_time": r.get("timestamp", ""),
+                        "response_time": r.get("timestamp", ""),
+                        "session_id": r.get("session_id", ""),
+                        "invocation_id": r.get("session_id", ""),
+                        "app_name": r.get("app_name", ""),
+                        "model_name": r.get("model_name", "Gemini 3.5 Flash"),
+                        "user_query": r.get("user_query", ""),
+                        "agent_response": r.get("agent_response", ""),
+                        "prompt_tokens": r.get("prompt_tokens", 0),
+                        "cached_tokens": r.get("cached_tokens", 0),
+                        "output_tokens": r.get("output_tokens", 0),
+                        "thinking_tokens": r.get("thinking_tokens", 0),
+                        "total_tokens": r.get("prompt_tokens", 0) + r.get("cached_tokens", 0) + r.get("output_tokens", 0) + r.get("thinking_tokens", 0),
+                        "cache_hit_rate": round(r.get("cached_tokens", 0) / (r.get("prompt_tokens", 0) + r.get("cached_tokens", 0)), 2) if (r.get("prompt_tokens", 0) + r.get("cached_tokens", 0)) > 0 else 0.0,
+                        "latency_ms": r.get("latency_ms", 0),
+                        "estimated_cost": r.get("estimated_cost", 0.0),
+                        "savings_dollars": 0.0,
+                        "raw_json": r.get("raw_json", "{}")
+                    })
+                return {
+                    "status": "success",
+                    "total_rows": legacy_res.get("total_rows", 0),
+                    "limit": limit,
+                    "offset": offset,
+                    "rows": turn_rows
+                }
+        except Exception as e:
+            print(f"[ERROR] fetch_bq_turns: {e}", flush=True)
+            return {
+                "status": "error",
+                "message": str(e),
+                "total_rows": 0,
+                "rows": [],
+                "limit": limit,
+                "offset": offset
+            }
+
     def fetch_bq_stats(self, dataset=None, table=None):
         from google.cloud import bigquery
         from google.cloud.exceptions import NotFound
@@ -1364,6 +1552,21 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             table = query_params.get('table', [None])[0]
             
             data = self.fetch_bq_explorer_logs(app_name=app_name, session_id=session_id, search=search, limit=limit, offset=offset, dataset=dataset, table=table)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode('utf-8'))
+
+        elif path == '/api/bq/turns':
+            limit = int(query_params.get('limit', ['50'])[0])
+            offset = int(query_params.get('offset', ['0'])[0])
+            app_name = query_params.get('app', query_params.get('app_name', ['all']))[0]
+            search = query_params.get('search', [''])[0]
+            dataset = query_params.get('dataset', [None])[0]
+            table = query_params.get('table', [None])[0]
+            
+            data = self.fetch_bq_turns(app_name=app_name, search=search, limit=limit, offset=offset, dataset=dataset, table=table)
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
