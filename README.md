@@ -2,7 +2,8 @@
 
 Welcome to the **Agent Tokenomics & Token Control Tower Framework**! This workspace provides a turnkey, reusable Python framework + interactive Web Control Tower to measure, optimize, and assert LLM token economics across **Prototyping**, **Development**, **CI/CD Testing**, and **Production FinOps**.
 
-📖 **[Read the Complete Plug & Play Framework Guide (PLUG_AND_PLAY_FRAMEWORK_GUIDE.md)](file:///Users/karticn/tokenomics/PLUG_AND_PLAY_FRAMEWORK_GUIDE.md)**
+📖 **[Read the Complete Plug & Play Framework Guide (PLUG_AND_PLAY_FRAMEWORK_GUIDE.md)](file:///Users/karticn/tokenomics/PLUG_AND_PLAY_FRAMEWORK_GUIDE.md)**  
+🧩 **[Read the Architecture & Modularity Guide (MODULARITY.md)](file:///Users/karticn/tokenomics/MODULARITY.md)**
 
 ---
 
