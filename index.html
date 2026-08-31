@@ -40,6 +40,11 @@
       </div>
       
       <div class="header-actions">
+        <button type="button" class="btn" id="btn-bq-config" style="background:rgba(147,51,234,0.15); color:#c084fc; border:1px solid rgba(147,51,234,0.35); font-weight:600; display:flex; align-items:center; gap:0.4rem; padding:0.45rem 0.85rem;" title="Configure BigQuery Target">
+          <span>🗄️ BQ:</span>
+          <span id="header-bq-dataset-badge" style="font-family:var(--font-mono); font-size:0.8rem; color:#e9d5ff;">bq_adk_ds.v_llm_response</span>
+        </button>
+
         <div class="poll-status-pill">
           <span class="pulse-dot green"></span>
           <span>Syncing BQ</span>
@@ -558,9 +563,9 @@
         <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
           <div>
             <h3 class="panel-title" style="color:var(--color-primary-light);">
-              <span>📋</span> BigQuery Query Results Table
+              <span>⚡</span> Google ADK Agent Analytics Event Explorer
             </h3>
-            <p class="panel-subtitle">Displaying parameterized SQL query results ordered by timestamp descending</p>
+            <p class="panel-subtitle">Direct trace event stream from <code style="color:var(--color-primary);">adk_agent_events</code> / <code style="color:var(--color-primary);">v_llm_response</code></p>
           </div>
           <span id="bq-table-count-badge" class="badge badge-primary" style="font-size:0.8rem;">Loading rows...</span>
         </div>
@@ -571,13 +576,13 @@
               <tr>
                 <th>#</th>
                 <th>UTC Timestamp</th>
-                <th>Session ID</th>
-                <th>Scenario App</th>
-                <th>User Query</th>
-                <th>Response Snippet</th>
-                <th>Tokens (In / Cached / Out / Think)</th>
+                <th>Event Type</th>
+                <th>Agent / App</th>
+                <th>Model</th>
+                <th>Prompt / Input Snippet</th>
+                <th>Tokens (In / Cache / Out / Think)</th>
+                <th>Latency</th>
                 <th>Cost ($)</th>
-                <th>Tools & Skills</th>
                 <th style="text-align:center;">Action</th>
               </tr>
             </thead>
@@ -619,6 +624,7 @@
         <div>
           <h2 style="font-size:1.35rem; font-weight:700; color:var(--color-primary-light); margin-bottom:0.25rem; display:flex; align-items:center; gap:0.5rem;">
             <span>💼</span> Executive FinOps & AI Unit Economics
+            <span id="finops-data-source-badge" class="badge badge-success" style="font-size:0.75rem; margin-left:0.5rem;">Google ADK Agent Analytics</span>
           </h2>
           <p style="font-size:0.85rem; color:var(--color-text-muted); margin:0;">
             Macroeconomic visibility into vendor spend, token consumption, context optimization savings, and cost drivers across use cases.
@@ -1003,6 +1009,52 @@
     </div>
   </div>
 
-  <script src="app.js?v=32"></script>
+  <!-- BigQuery Configuration Modal -->
+  <div id="bq-config-modal-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal-card glass-card" style="max-width:560px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <span style="font-size:1.4rem;">🗄️</span>
+          <div>
+            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:var(--color-text);">BigQuery Agent Analytics Config</h3>
+            <p style="margin:0; font-size:0.8rem; color:var(--color-text-muted);">Configure Google Cloud BigQuery dataset, table, and view targets</p>
+          </div>
+        </div>
+        <button type="button" class="modal-close" id="btn-close-bq-config">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.2rem; display:flex; flex-direction:column; gap:1rem;">
+        <div>
+          <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.3rem; color:var(--color-text);">GCP Project ID:</label>
+          <input type="text" id="cfg-bq-project" class="select-premium" style="width:100%; box-sizing:border-box;" placeholder="vertexai-demo-ltfpzhaw" />
+        </div>
+        <div>
+          <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.3rem; color:var(--color-text);">BigQuery Dataset:</label>
+          <div style="display:flex; gap:0.5rem;">
+            <select id="cfg-bq-dataset-select" class="select-premium" style="flex:1;">
+              <option value="bq_adk_ds">bq_adk_ds</option>
+            </select>
+            <input type="text" id="cfg-bq-dataset-custom" class="select-premium" style="flex:1;" placeholder="Or type custom dataset..." />
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          <div>
+            <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.3rem; color:var(--color-text);">Events Table:</label>
+            <input type="text" id="cfg-bq-table" class="select-premium" style="width:100%; box-sizing:border-box;" value="adk_agent_events" />
+          </div>
+          <div>
+            <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.3rem; color:var(--color-text);">LLM Response View:</label>
+            <input type="text" id="cfg-bq-view" class="select-premium" style="width:100%; box-sizing:border-box;" value="v_llm_response" />
+          </div>
+        </div>
+        <div id="bq-config-status-msg" style="display:none; padding:0.6rem 0.8rem; border-radius:6px; font-size:0.82rem;"></div>
+      </div>
+      <div class="modal-footer" style="padding:1rem 1.2rem; display:flex; justify-content:flex-end; gap:0.6rem; border-top:1px solid rgba(255,255,255,0.08);">
+        <button type="button" class="btn" id="btn-cancel-bq-config" style="background:rgba(255,255,255,0.06); color:var(--color-text);">Cancel</button>
+        <button type="button" class="btn btn-premium-primary" id="btn-save-bq-config">Save & Connect ⚡</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=33"></script>
 </body>
 </html>

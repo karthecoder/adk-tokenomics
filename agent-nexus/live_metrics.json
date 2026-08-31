@@ -1,38 +1,38 @@
 {
   "naive_app": {
     "name": "1. Naive Monolithic (Pro)",
-    "input": 10416,
-    "cached": 0,
-    "output": 33,
-    "cost": 0.021228,
-    "turns": 1,
-    "thinking": 0
+    "input": 42975,
+    "cached": 16234,
+    "output": 770,
+    "cost": 0.09948,
+    "turns": 4,
+    "thinking": 103
   },
   "caching_app": {
     "name": "2. Context Caching (Pro)",
-    "input": 0,
-    "cached": 0,
-    "output": 0,
-    "cost": 0.0,
-    "turns": 0,
-    "thinking": 0
+    "input": 31341,
+    "cached": 8117,
+    "output": 1746,
+    "cost": 0.0690234,
+    "turns": 3,
+    "thinking": 58
   },
   "compaction_app": {
     "name": "3. History Compaction (Pro)",
-    "input": 0,
-    "cached": 0,
-    "output": 0,
-    "cost": 0.0,
-    "turns": 0,
-    "thinking": 0
+    "input": 31350,
+    "cached": 8117,
+    "output": 2186,
+    "cost": 0.0743214,
+    "turns": 3,
+    "thinking": 139
   },
   "skills_app": {
     "name": "4. Modular Skills (Pro)",
-    "input": 0,
+    "input": 11880,
     "cached": 0,
-    "output": 0,
-    "cost": 0.0,
-    "turns": 0,
-    "thinking": 0
+    "output": 1590,
+    "cost": 0.064284,
+    "turns": 3,
+    "thinking": 133
   }
 }

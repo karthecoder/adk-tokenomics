@@ -1293,13 +1293,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const appName = r.app_name || 'unknown';
       let appBadgeClass = 'badge-primary';
       let appDisplay = appName;
-      if (appName === 'naive_app') { appBadgeClass = 'badge-danger'; appDisplay = '1. Naive'; }
-      else if (appName === 'caching_app') { appBadgeClass = 'badge-success'; appDisplay = '2. Caching'; }
-      else if (appName === 'compaction_app') { appBadgeClass = 'badge-warning'; appDisplay = '3. Compaction'; }
-      else if (appName === 'skills_app') { appBadgeClass = 'badge-primary'; appDisplay = '4. Modular Skills'; }
+      if (appName === 'naive_app' || appName.includes('naive')) { appBadgeClass = 'badge-danger'; appDisplay = '1. Naive'; }
+      else if (appName === 'caching_app' || appName.includes('caching')) { appBadgeClass = 'badge-success'; appDisplay = '2. Caching'; }
+      else if (appName === 'compaction_app' || appName.includes('compaction')) { appBadgeClass = 'badge-warning'; appDisplay = '3. Compaction'; }
+      else if (appName === 'skills_app' || appName.includes('skills')) { appBadgeClass = 'badge-primary'; appDisplay = '4. Modular Skills'; }
 
-      const querySnippet = r.user_query ? (r.user_query.length > 55 ? r.user_query.substring(0, 52) + '...' : r.user_query) : '-';
-      const respSnippet = r.agent_response ? (r.agent_response.length > 60 ? r.agent_response.substring(0, 57) + '...' : r.agent_response) : '-';
+      // Event Type Badge
+      const evType = r.event_type || 'LLM_RESPONSE';
+      let evBadgeClass = 'badge-primary';
+      let evColor = '#a855f7';
+      let evBg = 'rgba(168,85,247,0.15)';
+      if (evType === 'TOOL_COMPLETED' || evType === 'TOOL_STARTING') { evColor = '#f59e0b'; evBg = 'rgba(245,158,11,0.15)'; }
+      else if (evType === 'AGENT_STARTING' || evType === 'AGENT_COMPLETED') { evColor = '#06b6d4'; evBg = 'rgba(6,182,212,0.15)'; }
+      else if (evType === 'USER_MESSAGE_RECEIVED') { evColor = '#3b82f6'; evBg = 'rgba(59,130,246,0.15)'; }
+      else if (evType.includes('ERROR')) { evColor = '#ef4444'; evBg = 'rgba(239,68,68,0.15)'; }
+
+      const querySnippet = r.user_query ? (r.user_query.length > 55 ? r.user_query.substring(0, 52) + '...' : r.user_query) : (r.agent_response ? (r.agent_response.length > 55 ? r.agent_response.substring(0, 52) + '...' : r.agent_response) : '-');
+      const modelName = r.model_name || 'Gemini 3.5 Flash';
+      const latencyStr = r.latency_ms ? `${Number(r.latency_ms).toLocaleString()} ms` : '-';
 
       const promptTok = Number(r.prompt_tokens || 0).toLocaleString();
       const cachedTok = Number(r.cached_tokens || 0).toLocaleString();
@@ -1307,27 +1318,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const thinkTok = Number(r.thinking_tokens || 0).toLocaleString();
       const costStr = '$' + Number(r.estimated_cost || 0).toFixed(5);
 
-      // Tools / Skills badge
-      let toolsBadge = '<span style="color:var(--color-text-muted); font-size:0.75rem;">None</span>';
-      if (r.invoked_skills) {
-        toolsBadge = `<span class="badge badge-primary" style="font-size:0.7rem;">⚡ ${escapeHtml(r.invoked_skills)}</span>`;
-      } else if (r.invoked_tools) {
-        toolsBadge = `<span class="badge" style="background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); font-size:0.7rem;">🛠️ ${escapeHtml(r.invoked_tools.length > 30 ? r.invoked_tools.substring(0, 28) + '..' : r.invoked_tools)}</span>`;
-      }
-
       html += `
         <tr style="cursor:pointer;" onclick="window.inspectBqRow(${idx})">
           <td style="font-family:monospace; color:var(--color-text-muted);">${rowIdx}</td>
           <td style="font-family:monospace; font-size:0.75rem; color:#94a3b8; white-space:nowrap;">${escapeHtml(timeFormatted)}</td>
-          <td style="font-family:monospace; font-size:0.75rem; color:#60a5fa; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(r.session_id)}">
-            ${escapeHtml(r.session_id || '-')}
+          <td>
+            <span class="badge" style="background:${evBg}; color:${evColor}; border:1px solid ${evColor}44; font-size:0.7rem; font-weight:600;">
+              ${escapeHtml(evType)}
+            </span>
           </td>
           <td><span class="badge ${appBadgeClass}" style="font-size:0.75rem;">${escapeHtml(appDisplay)}</span></td>
-          <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(r.user_query)}">
-            ${escapeHtml(querySnippet)}
+          <td style="font-size:0.8rem; color:#e2e8f0; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            ${escapeHtml(modelName.replace('publishers/google/models/', ''))}
           </td>
-          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--color-text-muted);" title="${escapeHtml(r.agent_response)}">
-            ${escapeHtml(respSnippet)}
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(querySnippet)}">
+            ${escapeHtml(querySnippet)}
           </td>
           <td style="font-family:monospace; font-size:0.75rem; white-space:nowrap;">
             <span style="color:#60a5fa;" title="Fresh Input">${promptTok}</span> / 
@@ -1335,11 +1340,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <span style="color:#f59e0b;" title="Output">${outTok}</span> / 
             <span style="color:#c084fc;" title="Thinking">${thinkTok}</span>
           </td>
+          <td style="font-family:monospace; font-size:0.75rem; color:#94a3b8; white-space:nowrap;">${escapeHtml(latencyStr)}</td>
           <td style="font-family:monospace; font-weight:600; color:var(--color-success);">${costStr}</td>
-          <td>${toolsBadge}</td>
           <td style="text-align:center;">
             <button type="button" class="btn" style="padding:0.25rem 0.6rem; font-size:0.75rem; background:rgba(255,255,255,0.06); color:var(--color-primary-light); border:1px solid rgba(255,255,255,0.1); border-radius:6px; cursor:pointer;" onclick="event.stopPropagation(); window.inspectBqRow(${idx});">
-              🔍 View
+              🔍 Inspect JSON
             </button>
           </td>
         </tr>
@@ -1809,4 +1814,132 @@ document.addEventListener('DOMContentLoaded', () => {
       a.remove();
     });
   }
+
+  // ==========================================
+  // BIGQUERY AGENT ANALYTICS CONFIG MANAGER
+  // ==========================================
+  const btnBqConfig = document.getElementById('btn-bq-config');
+  const bqConfigModalOverlay = document.getElementById('bq-config-modal-overlay');
+  const btnCloseBqConfig = document.getElementById('btn-close-bq-config');
+  const btnCancelBqConfig = document.getElementById('btn-cancel-bq-config');
+  const btnSaveBqConfig = document.getElementById('btn-save-bq-config');
+  const headerBqDatasetBadge = document.getElementById('header-bq-dataset-badge');
+  const finopsDataSourceBadge = document.getElementById('finops-data-source-badge');
+
+  const cfgBqProject = document.getElementById('cfg-bq-project');
+  const cfgBqDatasetSelect = document.getElementById('cfg-bq-dataset-select');
+  const cfgBqDatasetCustom = document.getElementById('cfg-bq-dataset-custom');
+  const cfgBqTable = document.getElementById('cfg-bq-table');
+  const cfgBqView = document.getElementById('cfg-bq-view');
+  const bqConfigStatusMsg = document.getElementById('bq-config-status-msg');
+
+  function fetchBqConfig() {
+    fetch('/api/bq/config')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.dataset_id) {
+          if (headerBqDatasetBadge) {
+            headerBqDatasetBadge.textContent = `${data.dataset_id}.${data.view_id || 'v_llm_response'}`;
+          }
+          if (cfgBqProject) cfgBqProject.value = data.project_id || '';
+          if (cfgBqTable) cfgBqTable.value = data.table_id || 'adk_agent_events';
+          if (cfgBqView) cfgBqView.value = data.view_id || 'v_llm_response';
+
+          if (cfgBqDatasetSelect && data.available_datasets) {
+            let opts = '';
+            data.available_datasets.forEach(ds => {
+              const sel = ds === data.dataset_id ? 'selected' : '';
+              opts += `<option value="${ds}" ${sel}>${ds}</option>`;
+            });
+            cfgBqDatasetSelect.innerHTML = opts;
+          }
+        }
+      })
+      .catch(err => console.error('Failed to fetch BQ config:', err));
+  }
+
+  if (btnBqConfig) {
+    btnBqConfig.addEventListener('click', () => {
+      fetchBqConfig();
+      if (bqConfigModalOverlay) {
+        bqConfigModalOverlay.style.display = 'flex';
+      }
+    });
+  }
+
+  if (btnCloseBqConfig) {
+    btnCloseBqConfig.addEventListener('click', () => {
+      if (bqConfigModalOverlay) bqConfigModalOverlay.style.display = 'none';
+    });
+  }
+
+  if (btnCancelBqConfig) {
+    btnCancelBqConfig.addEventListener('click', () => {
+      if (bqConfigModalOverlay) bqConfigModalOverlay.style.display = 'none';
+    });
+  }
+
+  if (btnSaveBqConfig) {
+    btnSaveBqConfig.addEventListener('click', () => {
+      const selectedDs = (cfgBqDatasetCustom && cfgBqDatasetCustom.value.trim()) 
+        ? cfgBqDatasetCustom.value.trim() 
+        : (cfgBqDatasetSelect ? cfgBqDatasetSelect.value : 'bq_adk_ds');
+
+      const payload = {
+        project_id: cfgBqProject ? cfgBqProject.value.trim() : 'vertexai-demo-ltfpzhaw',
+        dataset_id: selectedDs,
+        table_id: cfgBqTable ? cfgBqTable.value.trim() : 'adk_agent_events',
+        view_id: cfgBqView ? cfgBqView.value.trim() : 'v_llm_response'
+      };
+
+      if (bqConfigStatusMsg) {
+        bqConfigStatusMsg.style.display = 'block';
+        bqConfigStatusMsg.style.background = 'rgba(59,130,246,0.15)';
+        bqConfigStatusMsg.style.color = '#60a5fa';
+        bqConfigStatusMsg.textContent = 'Saving configuration & verifying BigQuery connection...';
+      }
+
+      fetch('/api/bq/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === 'success') {
+            if (bqConfigStatusMsg) {
+              bqConfigStatusMsg.style.background = 'rgba(16,185,129,0.15)';
+              bqConfigStatusMsg.style.color = '#34d399';
+              bqConfigStatusMsg.textContent = '✅ Connected successfully!';
+            }
+            if (headerBqDatasetBadge) {
+              headerBqDatasetBadge.textContent = `${payload.dataset_id}.${payload.view_id}`;
+            }
+            setTimeout(() => {
+              if (bqConfigModalOverlay) bqConfigModalOverlay.style.display = 'none';
+              if (bqConfigStatusMsg) bqConfigStatusMsg.style.display = 'none';
+              loadFinOpsDashboard();
+              fetchBqStats();
+              fetchBqLogs(0);
+            }, 600);
+          } else {
+            if (bqConfigStatusMsg) {
+              bqConfigStatusMsg.style.background = 'rgba(239,68,68,0.15)';
+              bqConfigStatusMsg.style.color = '#f87171';
+              bqConfigStatusMsg.textContent = `❌ Error: ${data.message}`;
+            }
+          }
+        })
+        .catch(err => {
+          if (bqConfigStatusMsg) {
+            bqConfigStatusMsg.style.background = 'rgba(239,68,68,0.15)';
+            bqConfigStatusMsg.style.color = '#f87171';
+            bqConfigStatusMsg.textContent = `❌ Network Error: ${err.message}`;
+          }
+        });
+    });
+  }
+
+  // Load initial BigQuery target configuration
+  fetchBqConfig();
 });

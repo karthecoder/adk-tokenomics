@@ -153,7 +153,34 @@ def compute_tool_aggregates(turns):
                 
     return tools_summary
 
+def _safe_int(val, default=0):
+    if val is None:
+        return default
+    try:
+        if isinstance(val, (int, float)):
+            return int(val)
+        if hasattr(val, '_mock_name'):
+            return default
+        return int(str(val))
+    except Exception:
+        return default
+
+def _safe_float(val, default=0.0):
+    if val is None:
+        return default
+    try:
+        if isinstance(val, (int, float)):
+            return float(val)
+        if hasattr(val, '_mock_name'):
+            return default
+        return float(str(val))
+    except Exception:
+        return default
+
 class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
+    _safe_int = staticmethod(_safe_int)
+    _safe_float = staticmethod(_safe_float)
+
     def fetch_metrics_from_bq(self, session_id="global"):
         from google.cloud import bigquery
         from google.cloud.exceptions import NotFound
@@ -421,113 +448,320 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             print(f"[ERROR] fetch_sessions_from_bq error: {e}", flush=True)
             return []
 
-    def fetch_bq_explorer_logs(self, limit=50, offset=0, app_name=None, session_id=None, search=None):
+    ACTIVE_BQ_CONFIG = {
+        "project_id": os.environ.get("BIGQUERY_PROJECT_ID", os.environ.get("GOOGLE_CLOUD_PROJECT", "vertexai-demo-ltfpzhaw")),
+        "dataset_id": os.environ.get("BIGQUERY_DATASET", "bq_adk_ds"),
+        "table_id": os.environ.get("BIGQUERY_TABLE", "adk_agent_events"),
+        "view_id": os.environ.get("BIGQUERY_VIEW", "v_llm_response")
+    }
+
+    def get_bq_config(self):
+        from google.cloud import bigquery
+        project = self.ACTIVE_BQ_CONFIG["project_id"]
+        avail_datasets = []
+        try:
+            client = bigquery.Client(project=project)
+            avail_datasets = [d.dataset_id for d in client.list_datasets()]
+        except Exception:
+            avail_datasets = [self.ACTIVE_BQ_CONFIG["dataset_id"]]
+            
+        return {
+            "project_id": self.ACTIVE_BQ_CONFIG["project_id"],
+            "dataset_id": self.ACTIVE_BQ_CONFIG["dataset_id"],
+            "table_id": self.ACTIVE_BQ_CONFIG["table_id"],
+            "view_id": self.ACTIVE_BQ_CONFIG["view_id"],
+            "available_datasets": avail_datasets
+        }
+
+    def set_bq_config(self, cfg):
+        if not isinstance(cfg, dict):
+            return False
+        if "project_id" in cfg and cfg["project_id"]:
+            self.ACTIVE_BQ_CONFIG["project_id"] = str(cfg["project_id"]).strip()
+        if "dataset_id" in cfg and cfg["dataset_id"]:
+            self.ACTIVE_BQ_CONFIG["dataset_id"] = str(cfg["dataset_id"]).strip()
+        if "table_id" in cfg and cfg["table_id"]:
+            self.ACTIVE_BQ_CONFIG["table_id"] = str(cfg["table_id"]).strip()
+        if "view_id" in cfg and cfg["view_id"]:
+            self.ACTIVE_BQ_CONFIG["view_id"] = str(cfg["view_id"]).strip()
+        return True
+
+    def _calc_model_cost(self, model_name, input_tokens, cached_tokens, output_tokens, thinking_tokens, models_config):
+        input_rate = 0.30
+        cached_rate = 0.075
+        output_rate = 2.50
+        
+        m_lower = (model_name or "").lower()
+        for cat in models_config.get("categories", []):
+            for m in cat.get("models", []):
+                m_id = m.get("id", "").lower()
+                m_display = m.get("name", "").lower()
+                if m_id in m_lower or m_display in m_lower or (m_lower and m_lower in m_id):
+                    rates = m.get("pricing", {})
+                    input_rate = float(rates.get("input_per_million", input_rate))
+                    cached_rate = float(rates.get("cached_per_million", input_rate * 0.25))
+                    output_rate = float(rates.get("output_per_million", output_rate))
+                    break
+                    
+        fresh_cost = (input_tokens / 1_000_000.0) * input_rate
+        cached_cost = (cached_tokens / 1_000_000.0) * cached_rate
+        output_cost = ((output_tokens + thinking_tokens) / 1_000_000.0) * output_rate
+        total_cost = fresh_cost + cached_cost + output_cost
+        
+        # Savings vs hypothetical uncached baseline
+        uncached_baseline = ((input_tokens + cached_tokens) / 1_000_000.0) * input_rate + output_cost
+        savings_dollars = max(0.0, uncached_baseline - total_cost)
+        
+        return {
+            "total_cost": total_cost,
+            "savings_dollars": savings_dollars,
+            "input_rate": input_rate,
+            "cached_rate": cached_rate,
+            "output_rate": output_rate
+        }
+
+    def fetch_bq_explorer_logs(self, app_name=None, session_id=None, search=None, limit=50, offset=0, dataset=None, table=None):
         from google.cloud import bigquery
         from google.cloud.exceptions import NotFound
         
-        limit = min(max(1, int(limit)), 200)
-        offset = max(0, int(offset))
-        
         try:
             client = bigquery.Client()
-            project = client.project
-            dataset_id = "bq_adk_ds"
+            project = self.ACTIVE_BQ_CONFIG["project_id"] or client.project
+            dataset_id = dataset or self.ACTIVE_BQ_CONFIG["dataset_id"]
+            table_id = table or self.ACTIVE_BQ_CONFIG["table_id"]
+            
             try:
                 client.get_dataset(f"{project}.{dataset_id}")
             except NotFound:
-                dataset_id = "karticn_adk_demo"
-                try:
-                    client.get_dataset(f"{project}.{dataset_id}")
-                except NotFound:
-                    return {"status": "success", "total_rows": 0, "rows": [], "limit": limit, "offset": offset}
+                return {"status": "success", "total_rows": 0, "rows": [], "limit": limit, "offset": offset}
                     
-            table_id = "token_consumption_logs"
             full_table_id = f"{project}.{dataset_id}.{table_id}"
+            is_adk_events_table = False
             
             try:
-                client.get_table(full_table_id)
+                table_obj = client.get_table(full_table_id)
+                col_names = [f.name for f in table_obj.schema]
+                if "event_type" in col_names and "content" in col_names:
+                    is_adk_events_table = True
             except NotFound:
-                return {"status": "success", "total_rows": 0, "rows": [], "limit": limit, "offset": offset}
+                # Fallback to legacy token_consumption_logs if adk_agent_events doesn't exist
+                full_table_id = f"{project}.{dataset_id}.token_consumption_logs"
+                try:
+                    client.get_table(full_table_id)
+                except NotFound:
+                    return {"status": "success", "total_rows": 0, "rows": [], "limit": limit, "offset": offset}
                 
             where_conds = []
             params = []
             
-            if app_name and app_name != "all":
-                where_conds.append("app_name = @app_name")
-                params.append(bigquery.ScalarQueryParameter("app_name", "STRING", app_name))
+            if is_adk_events_table:
+                if app_name and app_name != "all":
+                    where_conds.append("(agent = @app_name OR JSON_VALUE(attributes, '$.session_metadata.app_name') = @app_name)")
+                    params.append(bigquery.ScalarQueryParameter("app_name", "STRING", app_name))
+                if session_id and session_id.strip():
+                    where_conds.append("LOWER(session_id) LIKE @session_id")
+                    params.append(bigquery.ScalarQueryParameter("session_id", "STRING", f"%{session_id.strip().lower()}%"))
+                if search and search.strip():
+                    where_conds.append("(LOWER(event_type) LIKE @search OR LOWER(TO_JSON_STRING(content)) LIKE @search OR LOWER(agent) LIKE @search)")
+                    params.append(bigquery.ScalarQueryParameter("search", "STRING", f"%{search.strip().lower()}%"))
+                    
+                where_clause = "WHERE " + " AND ".join(where_conds) if where_conds else ""
                 
-            if session_id and session_id.strip():
-                where_conds.append("LOWER(session_id) LIKE @session_id")
-                params.append(bigquery.ScalarQueryParameter("session_id", "STRING", f"%{session_id.strip().lower()}%"))
+                count_query = f"SELECT COUNT(*) as total FROM `{full_table_id}` {where_clause}"
+                job_config = bigquery.QueryJobConfig(query_parameters=params) if params else None
+                count_job = client.query(count_query, job_config=job_config)
+                total_count = list(count_job.result())[0].total
                 
-            if search and search.strip():
-                where_conds.append("(LOWER(user_query) LIKE @search OR LOWER(agent_response) LIKE @search OR LOWER(invoked_tools) LIKE @search)")
-                params.append(bigquery.ScalarQueryParameter("search", "STRING", f"%{search.strip().lower()}%"))
+                data_query = f"""
+                    SELECT 
+                        timestamp,
+                        event_type,
+                        agent,
+                        session_id,
+                        invocation_id,
+                        user_id,
+                        content,
+                        attributes,
+                        latency_ms,
+                        status,
+                        error_message
+                    FROM `{full_table_id}`
+                    {where_clause}
+                    ORDER BY timestamp DESC
+                    LIMIT @limit OFFSET @offset
+                """
+                data_params = list(params)
+                data_params.append(bigquery.ScalarQueryParameter("limit", "INT64", limit))
+                data_params.append(bigquery.ScalarQueryParameter("offset", "INT64", offset))
                 
-            where_clause = "WHERE " + " AND ".join(where_conds) if where_conds else ""
-            
-            # Count query for pagination
-            count_query = f"SELECT COUNT(*) as total FROM `{full_table_id}` {where_clause}"
-            job_config = bigquery.QueryJobConfig(query_parameters=params) if params else None
-            count_job = client.query(count_query, job_config=job_config)
-            total_count = list(count_job.result())[0].total
-            
-            # Data query with all 14 columns
-            data_query = f"""
-                SELECT 
-                    timestamp,
-                    session_id,
-                    app_name,
-                    user_query,
-                    agent_response,
-                    prompt_tokens,
-                    cached_tokens,
-                    output_tokens,
-                    COALESCE(thinking_tokens, 0) as thinking_tokens,
-                    estimated_cost,
-                    source,
-                    COALESCE(model_name, 'Gemini 3.5 Flash') as model_name,
-                    COALESCE(invoked_tools, '') as invoked_tools,
-                    COALESCE(invoked_skills, '') as invoked_skills
-                FROM `{full_table_id}`
-                {where_clause}
-                ORDER BY timestamp DESC
-                LIMIT @limit OFFSET @offset
-            """
-            data_params = list(params)
-            data_params.append(bigquery.ScalarQueryParameter("limit", "INT64", limit))
-            data_params.append(bigquery.ScalarQueryParameter("offset", "INT64", offset))
-            
-            data_job_config = bigquery.QueryJobConfig(query_parameters=data_params)
-            query_job = client.query(data_query, job_config=data_job_config)
-            results = query_job.result()
-            
-            rows = []
-            for r in results:
-                rows.append({
-                    "timestamp": r.timestamp.isoformat() if hasattr(r.timestamp, "isoformat") else str(r.timestamp),
-                    "session_id": str(r.session_id),
-                    "app_name": str(r.app_name),
-                    "user_query": str(getattr(r, "user_query", "") or ""),
-                    "agent_response": str(getattr(r, "agent_response", "") or ""),
-                    "prompt_tokens": int(r.prompt_tokens or 0),
-                    "cached_tokens": int(r.cached_tokens or 0),
-                    "output_tokens": int(r.output_tokens or 0),
-                    "thinking_tokens": int(getattr(r, "thinking_tokens", 0) or 0),
-                    "estimated_cost": float(r.estimated_cost or 0.0),
-                    "source": str(getattr(r, "source", "adk_playground") or "adk_playground"),
-                    "model_name": str(getattr(r, "model_name", "Gemini 3.5 Flash") or "Gemini 3.5 Flash"),
-                    "invoked_tools": str(getattr(r, "invoked_tools", "") or ""),
-                    "invoked_skills": str(getattr(r, "invoked_skills", "") or "")
-                })
+                query_job = client.query(data_query, job_config=bigquery.QueryJobConfig(query_parameters=data_params))
+                results = query_job.result()
                 
-            return {
-                "status": "success",
-                "total_rows": total_count,
-                "limit": limit,
-                "offset": offset,
-                "rows": rows
-            }
+                rows = []
+                cfg = shared_logic.load_models_config()
+                for r in results:
+                    attr = r.attributes if isinstance(r.attributes, dict) else {}
+                    if isinstance(r.attributes, str):
+                        try: attr = json.loads(r.attributes)
+                        except Exception: attr = {}
+                    
+                    cont = r.content if isinstance(r.content, dict) else {}
+                    if isinstance(r.content, str):
+                        try: cont = json.loads(r.content)
+                        except Exception: cont = {}
+                        
+                    lat = r.latency_ms if isinstance(r.latency_ms, dict) else {}
+                    if isinstance(r.latency_ms, str):
+                        try: lat = json.loads(r.latency_ms)
+                        except Exception: lat = {}
+                        
+                    usage = attr.get("usage_metadata") or {}
+                    p_tok = int(usage.get("prompt_token_count") or (cont.get("usage", {}).get("prompt", 0) if isinstance(cont.get("usage"), dict) else 0) or 0)
+                    c_tok = int(usage.get("cached_content_token_count") or 0)
+                    o_tok = int(usage.get("candidates_token_count") or (cont.get("usage", {}).get("completion", 0) if isinstance(cont.get("usage"), dict) else 0) or 0)
+                    th_tok = int(usage.get("thoughts_token_count") or 0)
+                    m_name = str(attr.get("model") or attr.get("model_version") or "Gemini 3.5 Flash")
+                    
+                    cost_info = self._calc_model_cost(m_name, p_tok, c_tok, o_tok, th_tok, cfg)
+                    
+                    user_q = ""
+                    agent_resp = ""
+                    if isinstance(cont, dict):
+                        if "prompt" in cont: user_q = str(cont["prompt"])
+                        elif "content" in cont: user_q = str(cont["content"])
+                        if "response" in cont: agent_resp = str(cont["response"])
+                    elif isinstance(r.content, str):
+                        agent_resp = r.content
+                        
+                    resolved_app = attr.get("session_metadata", {}).get("app_name") if isinstance(attr.get("session_metadata"), dict) else (r.agent or "agent")
+                    
+                    rows.append({
+                        "timestamp": r.timestamp.isoformat() if hasattr(r.timestamp, "isoformat") else str(r.timestamp),
+                        "session_id": str(r.session_id or ""),
+                        "app_name": str(resolved_app or r.agent or "app"),
+                        "event_type": str(r.event_type or "EVENT"),
+                        "user_query": user_q[:300],
+                        "agent_response": agent_resp[:300],
+                        "prompt_tokens": p_tok,
+                        "cached_tokens": c_tok,
+                        "output_tokens": o_tok,
+                        "thinking_tokens": th_tok,
+                        "estimated_cost": round(cost_info["total_cost"], 5),
+                        "source": "adk_bigquery_analytics",
+                        "model_name": m_name,
+                        "latency_ms": lat.get("total_ms") or lat.get("time_to_first_token_ms") or 0,
+                        "status": str(r.status or "OK"),
+                        "invoked_tools": str(attr.get("tools") or ""),
+                        "invoked_skills": str(attr.get("skills") or ""),
+                        "raw_json": json.dumps({
+                            "timestamp": str(r.timestamp),
+                            "event_type": r.event_type,
+                            "agent": r.agent,
+                            "session_id": r.session_id,
+                            "invocation_id": r.invocation_id,
+                            "user_id": r.user_id,
+                            "content": cont,
+                            "attributes": attr,
+                            "latency_ms": lat,
+                            "status": r.status,
+                            "error_message": r.error_message
+                        }, indent=2)
+                    })
+                    
+                return {
+                    "status": "success",
+                    "total_rows": total_count,
+                    "limit": limit,
+                    "offset": offset,
+                    "rows": rows
+                }
+            else:
+                # Legacy token_consumption_logs query
+                if app_name and app_name != "all":
+                    where_conds.append("app_name = @app_name")
+                    params.append(bigquery.ScalarQueryParameter("app_name", "STRING", app_name))
+                if session_id and session_id.strip():
+                    where_conds.append("LOWER(session_id) LIKE @session_id")
+                    params.append(bigquery.ScalarQueryParameter("session_id", "STRING", f"%{session_id.strip().lower()}%"))
+                if search and search.strip():
+                    where_conds.append("(LOWER(user_query) LIKE @search OR LOWER(agent_response) LIKE @search OR LOWER(invoked_tools) LIKE @search)")
+                    params.append(bigquery.ScalarQueryParameter("search", "STRING", f"%{search.strip().lower()}%"))
+                    
+                where_clause = "WHERE " + " AND ".join(where_conds) if where_conds else ""
+                count_query = f"SELECT COUNT(*) as total FROM `{full_table_id}` {where_clause}"
+                job_config = bigquery.QueryJobConfig(query_parameters=params) if params else None
+                count_job = client.query(count_query, job_config=job_config)
+                total_count = list(count_job.result())[0].total
+                
+                data_query = f"""
+                    SELECT 
+                        timestamp,
+                        session_id,
+                        app_name,
+                        user_query,
+                        agent_response,
+                        prompt_tokens,
+                        cached_tokens,
+                        output_tokens,
+                        COALESCE(thinking_tokens, 0) as thinking_tokens,
+                        estimated_cost,
+                        source,
+                        COALESCE(model_name, 'Gemini 3.5 Flash') as model_name,
+                        COALESCE(invoked_tools, '') as invoked_tools,
+                        COALESCE(invoked_skills, '') as invoked_skills
+                    FROM `{full_table_id}`
+                    {where_clause}
+                    ORDER BY timestamp DESC
+                    LIMIT @limit OFFSET @offset
+                """
+                data_params = list(params)
+                data_params.append(bigquery.ScalarQueryParameter("limit", "INT64", limit))
+                data_params.append(bigquery.ScalarQueryParameter("offset", "INT64", offset))
+                
+                query_job = client.query(data_query, job_config=bigquery.QueryJobConfig(query_parameters=data_params))
+                results = query_job.result()
+                
+                rows = []
+                for r in results:
+                    rows.append({
+                        "timestamp": r.timestamp.isoformat() if hasattr(r.timestamp, "isoformat") else str(r.timestamp),
+                        "session_id": str(r.session_id),
+                        "app_name": str(r.app_name),
+                        "event_type": "LLM_RESPONSE",
+                        "user_query": str(getattr(r, "user_query", "") or ""),
+                        "agent_response": str(getattr(r, "agent_response", "") or ""),
+                        "prompt_tokens": int(r.prompt_tokens or 0),
+                        "cached_tokens": int(r.cached_tokens or 0),
+                        "output_tokens": int(r.output_tokens or 0),
+                        "thinking_tokens": int(getattr(r, "thinking_tokens", 0) or 0),
+                        "estimated_cost": float(r.estimated_cost or 0.0),
+                        "source": str(getattr(r, "source", "token_logs") or "token_logs"),
+                        "model_name": str(getattr(r, "model_name", "Gemini 3.5 Flash") or "Gemini 3.5 Flash"),
+                        "latency_ms": 0,
+                        "status": "OK",
+                        "invoked_tools": str(getattr(r, "invoked_tools", "") or ""),
+                        "invoked_skills": str(getattr(r, "invoked_skills", "") or ""),
+                        "raw_json": json.dumps({
+                            "timestamp": str(r.timestamp),
+                            "session_id": r.session_id,
+                            "app_name": r.app_name,
+                            "user_query": r.user_query,
+                            "agent_response": r.agent_response,
+                            "prompt_tokens": r.prompt_tokens,
+                            "cached_tokens": r.cached_tokens,
+                            "output_tokens": r.output_tokens,
+                            "thinking_tokens": getattr(r, "thinking_tokens", 0),
+                            "estimated_cost": r.estimated_cost
+                        }, indent=2)
+                    })
+                    
+                return {
+                    "status": "success",
+                    "total_rows": total_count,
+                    "limit": limit,
+                    "offset": offset,
+                    "rows": rows
+                }
         except Exception as e:
             print(f"[ERROR] fetch_bq_explorer_logs: {e}", flush=True)
             return {
@@ -539,80 +773,107 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 "offset": offset
             }
 
-    def fetch_bq_stats(self):
+    def fetch_bq_stats(self, dataset=None, table=None):
         from google.cloud import bigquery
         from google.cloud.exceptions import NotFound
         
         try:
             client = bigquery.Client()
-            project = client.project
-            dataset_id = "bq_adk_ds"
-            try:
-                client.get_dataset(f"{project}.{dataset_id}")
-            except NotFound:
-                dataset_id = "karticn_adk_demo"
-                try:
-                    client.get_dataset(f"{project}.{dataset_id}")
-                except NotFound:
-                    return {"total_turns": 0, "total_cost": 0.0, "total_input": 0, "total_cached": 0, "total_output": 0, "unique_sessions": 0}
-                    
-            table_id = "token_consumption_logs"
-            full_table_id = f"{project}.{dataset_id}.{table_id}"
+            project = self.ACTIVE_BQ_CONFIG["project_id"] or client.project
+            dataset_id = dataset or self.ACTIVE_BQ_CONFIG["dataset_id"]
             
+            # Check v_llm_response view first
+            full_view_id = f"{project}.{dataset_id}.{self.ACTIVE_BQ_CONFIG['view_id']}"
             try:
-                client.get_table(full_table_id)
-            except NotFound:
-                return {"total_turns": 0, "total_cost": 0.0, "total_input": 0, "total_cached": 0, "total_output": 0, "unique_sessions": 0}
+                client.get_table(full_view_id)
+                query = f"""
+                    SELECT 
+                        COUNT(*) as total_turns,
+                        COALESCE(SUM(usage_prompt_tokens), 0) as total_input,
+                        COALESCE(SUM(usage_cached_tokens), 0) as total_cached,
+                        COALESCE(SUM(usage_completion_tokens), 0) as total_output,
+                        COUNT(DISTINCT session_id) as unique_sessions
+                    FROM `{full_view_id}`
+                """
+                query_job = client.query(query)
+                row = list(query_job.result())[0]
+                inp = _safe_int(getattr(row, 'total_input', 0))
+                cac = _safe_int(getattr(row, 'total_cached', 0))
+                out = _safe_int(getattr(row, 'total_output', 0))
                 
-            query = f"""
-                SELECT 
-                    COUNT(*) as total_turns,
-                    COALESCE(SUM(estimated_cost), 0.0) as total_cost,
-                    COALESCE(SUM(prompt_tokens), 0) as total_input,
-                    COALESCE(SUM(cached_tokens), 0) as total_cached,
-                    COALESCE(SUM(output_tokens), 0) as total_output,
-                    COUNT(DISTINCT session_id) as unique_sessions
-                FROM `{full_table_id}`
-            """
-            query_job = client.query(query)
-            row = list(query_job.result())[0]
-            
-            return {
-                "total_turns": int(row.total_turns or 0),
-                "total_cost": float(row.total_cost or 0.0),
-                "total_input": int(row.total_input or 0),
-                "total_cached": int(row.total_cached or 0),
-                "total_output": int(row.total_output or 0),
-                "unique_sessions": int(row.unique_sessions or 0)
-            }
+                # Check if total_cost is already on row
+                raw_cost = getattr(row, 'total_cost', None)
+                if raw_cost is not None and not hasattr(raw_cost, '_mock_name'):
+                    est_cost = _safe_float(raw_cost)
+                else:
+                    est_cost = (inp / 1e6 * 0.30) + (cac / 1e6 * 0.075) + (out / 1e6 * 2.50)
+                
+                return {
+                    "total_turns": _safe_int(getattr(row, 'total_turns', 0)),
+                    "total_cost": round(est_cost, 5),
+                    "total_input": inp,
+                    "total_cached": cac,
+                    "total_output": out,
+                    "unique_sessions": _safe_int(getattr(row, 'unique_sessions', 0))
+                }
+            except NotFound:
+                # Fallback to token_consumption_logs
+                full_table_id = f"{project}.{dataset_id}.token_consumption_logs"
+                client.get_table(full_table_id)
+                query = f"""
+                    SELECT 
+                        COUNT(*) as total_turns,
+                        COALESCE(SUM(estimated_cost), 0.0) as total_cost,
+                        COALESCE(SUM(prompt_tokens), 0) as total_input,
+                        COALESCE(SUM(cached_tokens), 0) as total_cached,
+                        COALESCE(SUM(output_tokens), 0) as total_output,
+                        COUNT(DISTINCT session_id) as unique_sessions
+                    FROM `{full_table_id}`
+                """
+                query_job = client.query(query)
+                row = list(query_job.result())[0]
+                
+                return {
+                    "total_turns": _safe_int(getattr(row, 'total_turns', 0)),
+                    "total_cost": _safe_float(getattr(row, 'total_cost', 0.0)),
+                    "total_input": _safe_int(getattr(row, 'total_input', 0)),
+                    "total_cached": _safe_int(getattr(row, 'total_cached', 0)),
+                    "total_output": _safe_int(getattr(row, 'total_output', 0)),
+                    "unique_sessions": _safe_int(getattr(row, 'unique_sessions', 0))
+                }
         except Exception as e:
             print(f"[ERROR] fetch_bq_stats: {e}", flush=True)
             return {"total_turns": 0, "total_cost": 0.0, "total_input": 0, "total_cached": 0, "total_output": 0, "unique_sessions": 0}
 
-    def fetch_finops_summary(self, timeframe='all', provider='all'):
+    def fetch_finops_summary(self, timeframe='all', provider='all', dataset=None, view=None):
         from google.cloud import bigquery
         from google.cloud.exceptions import NotFound
         
         try:
             client = bigquery.Client()
-            project = client.project
-            dataset_id = "bq_adk_ds"
+            project = self.ACTIVE_BQ_CONFIG["project_id"] or client.project
+            dataset_id = dataset or self.ACTIVE_BQ_CONFIG["dataset_id"]
+            view_id = view or self.ACTIVE_BQ_CONFIG["view_id"]
+            
             try:
                 client.get_dataset(f"{project}.{dataset_id}")
             except NotFound:
-                dataset_id = "karticn_adk_demo"
-                try:
-                    client.get_dataset(f"{project}.{dataset_id}")
-                except NotFound:
-                    return self._empty_finops_summary()
+                return self._empty_finops_summary(f"Dataset {dataset_id} not found.")
                     
-            table_id = "token_consumption_logs"
-            full_table_id = f"{project}.{dataset_id}.{table_id}"
+            full_view_id = f"{project}.{dataset_id}.{view_id}"
+            is_adk_view = False
             
             try:
-                client.get_table(full_table_id)
+                client.get_table(full_view_id)
+                is_adk_view = True
             except NotFound:
-                return self._empty_finops_summary()
+                full_view_id = f"{project}.{dataset_id}.token_consumption_logs"
+                try:
+                    client.get_table(full_view_id)
+                except NotFound:
+                    return self._empty_finops_summary(f"Neither {view_id} nor token_consumption_logs found in {dataset_id}.")
+
+            cfg = shared_logic.load_models_config()
 
             # Build WHERE clauses
             where_clauses = ["1=1"]
@@ -630,49 +891,91 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             if provider and provider != 'all':
                 provider_lower = provider.lower()
                 if 'google' in provider_lower or 'gemini' in provider_lower:
-                    where_clauses.append("LOWER(model_name) LIKE '%gemini%'")
+                    if is_adk_view:
+                        where_clauses.append("LOWER(model_version) LIKE '%gemini%'")
+                    else:
+                        where_clauses.append("LOWER(model_name) LIKE '%gemini%'")
                 elif 'anthropic' in provider_lower or 'claude' in provider_lower:
-                    where_clauses.append("LOWER(model_name) LIKE '%claude%'")
+                    if is_adk_view:
+                        where_clauses.append("LOWER(model_version) LIKE '%claude%'")
+                    else:
+                        where_clauses.append("LOWER(model_name) LIKE '%claude%'")
                 elif 'openai' in provider_lower or 'gpt' in provider_lower:
-                    where_clauses.append("LOWER(model_name) LIKE '%gpt%'")
+                    if is_adk_view:
+                        where_clauses.append("LOWER(model_version) LIKE '%gpt%'")
+                    else:
+                        where_clauses.append("LOWER(model_name) LIKE '%gpt%'")
 
             where_sql = " AND ".join(where_clauses)
 
-            # Query 1: Detailed Groupings by (model_name, app_name)
-            query_groups = f"""
-                SELECT 
-                    COALESCE(model_name, 'Gemini 3.5 Flash') as model_name,
-                    COALESCE(app_name, 'naive_app') as app_name,
-                    COUNT(*) as turns,
-                    COALESCE(SUM(prompt_tokens), 0) as input_tokens,
-                    COALESCE(SUM(cached_tokens), 0) as cached_tokens,
-                    COALESCE(SUM(output_tokens), 0) as output_tokens,
-                    COALESCE(SUM(thinking_tokens), 0) as thinking_tokens,
-                    COALESCE(SUM(estimated_cost), 0.0) as total_cost
-                FROM `{full_table_id}`
-                WHERE {where_sql}
-                GROUP BY 1, 2
-                ORDER BY total_cost DESC
-            """
+            if is_adk_view:
+                query_groups = f"""
+                    SELECT 
+                        COALESCE(model_version, 'Gemini 3.5 Flash') as model_name,
+                        COALESCE(JSON_VALUE(attributes, '$.session_metadata.app_name'), agent, 'app') as app_name,
+                        COUNT(*) as turns,
+                        COALESCE(SUM(usage_prompt_tokens), 0) as input_tokens,
+                        COALESCE(SUM(usage_cached_tokens), 0) as cached_tokens,
+                        COALESCE(SUM(usage_completion_tokens), 0) as output_tokens,
+                        COALESCE(SUM(CAST(JSON_VALUE(attributes, '$.usage_metadata.thoughts_token_count') AS INT64)), 0) as thinking_tokens
+                    FROM `{full_view_id}`
+                    WHERE {where_sql}
+                    GROUP BY 1, 2
+                """
+                query_timeline = f"""
+                    SELECT 
+                        FORMAT_TIMESTAMP('%Y-%m-%d', timestamp) as date_label,
+                        COUNT(*) as turns,
+                        COALESCE(SUM(usage_prompt_tokens + COALESCE(usage_cached_tokens,0) + usage_completion_tokens + COALESCE(CAST(JSON_VALUE(attributes, '$.usage_metadata.thoughts_token_count') AS INT64),0)), 0) as daily_tokens,
+                        COALESCE(model_version, 'Gemini 3.5 Flash') as model_name,
+                        COALESCE(SUM(usage_prompt_tokens), 0) as input_tokens,
+                        COALESCE(SUM(usage_cached_tokens), 0) as cached_tokens,
+                        COALESCE(SUM(usage_completion_tokens), 0) as output_tokens,
+                        COALESCE(SUM(CAST(JSON_VALUE(attributes, '$.usage_metadata.thoughts_token_count') AS INT64)), 0) as thinking_tokens
+                    FROM `{full_view_id}`
+                    WHERE {where_sql}
+                    GROUP BY 1, 4
+                    ORDER BY 1 ASC
+                """
+            else:
+                query_groups = f"""
+                    SELECT 
+                        COALESCE(model_name, 'Gemini 3.5 Flash') as model_name,
+                        COALESCE(app_name, 'naive_app') as app_name,
+                        COUNT(*) as turns,
+                        COALESCE(SUM(prompt_tokens), 0) as input_tokens,
+                        COALESCE(SUM(cached_tokens), 0) as cached_tokens,
+                        COALESCE(SUM(output_tokens), 0) as output_tokens,
+                        COALESCE(SUM(thinking_tokens), 0) as thinking_tokens,
+                        COALESCE(SUM(estimated_cost), 0.0) as total_cost
+                    FROM `{full_view_id}`
+                    WHERE {where_sql}
+                    GROUP BY 1, 2
+                """
+                query_timeline = f"""
+                    SELECT 
+                        FORMAT_TIMESTAMP('%Y-%m-%d', timestamp) as date_label,
+                        COUNT(*) as turns,
+                        COALESCE(SUM(prompt_tokens + cached_tokens + output_tokens + thinking_tokens), 0) as daily_tokens,
+                        COALESCE(model_name, 'Gemini 3.5 Flash') as model_name,
+                        COALESCE(SUM(prompt_tokens), 0) as input_tokens,
+                        COALESCE(SUM(cached_tokens), 0) as cached_tokens,
+                        COALESCE(SUM(output_tokens), 0) as output_tokens,
+                        COALESCE(SUM(thinking_tokens), 0) as thinking_tokens,
+                        COALESCE(SUM(estimated_cost), 0.0) as daily_cost
+                    FROM `{full_view_id}`
+                    WHERE {where_sql}
+                    GROUP BY 1, 4
+                    ORDER BY 1 ASC
+                """
+
             job_config = bigquery.QueryJobConfig(query_parameters=query_params)
             group_rows = list(client.query(query_groups, job_config=job_config).result())
-
-            # Query 2: Timeline Aggregations by Day
-            query_timeline = f"""
-                SELECT 
-                    FORMAT_TIMESTAMP('%Y-%m-%d', timestamp) as date_label,
-                    COUNT(*) as turns,
-                    COALESCE(SUM(prompt_tokens + cached_tokens + output_tokens + thinking_tokens), 0) as daily_tokens,
-                    COALESCE(SUM(estimated_cost), 0.0) as daily_cost
-                FROM `{full_table_id}`
-                WHERE {where_sql}
-                GROUP BY 1
-                ORDER BY 1 ASC
-            """
             timeline_rows = list(client.query(query_timeline, job_config=job_config).result())
 
             # Aggregate Metrics
             total_spend = 0.0
+            total_savings = 0.0
             total_input = 0
             total_cached = 0
             total_output = 0
@@ -698,15 +1001,26 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             for r in group_rows:
                 m_name = getattr(r, 'model_name', 'Gemini 3.5 Flash') or 'Gemini 3.5 Flash'
                 a_name = getattr(r, 'app_name', 'naive_app') or 'naive_app'
-                t_count = int(getattr(r, 'turns', 0) or 0)
-                inp = int(getattr(r, 'input_tokens', 0) or 0)
-                cac = int(getattr(r, 'cached_tokens', 0) or 0)
-                out = int(getattr(r, 'output_tokens', 0) or 0)
-                thk = int(getattr(r, 'thinking_tokens', 0) or 0)
-                cost = float(getattr(r, 'total_cost', 0.0) or 0.0)
+                t_count = _safe_int(getattr(r, 'turns', 0))
+                inp = _safe_int(getattr(r, 'input_tokens', 0))
+                cac = _safe_int(getattr(r, 'cached_tokens', 0))
+                out = _safe_int(getattr(r, 'output_tokens', 0))
+                thk = _safe_int(getattr(r, 'thinking_tokens', 0))
+                
+                # Check if total_cost is already calculated
+                raw_r_cost = getattr(r, 'total_cost', None)
+                if raw_r_cost is not None and not hasattr(raw_r_cost, '_mock_name'):
+                    cost = _safe_float(raw_r_cost)
+                    savings = (cac / 1e6) * (0.30 - 0.075)
+                else:
+                    cost_res = self._calc_model_cost(m_name, inp, cac, out, thk, cfg)
+                    cost = cost_res["total_cost"]
+                    savings = cost_res["savings_dollars"]
+                    
                 tot_tok = inp + cac + out + thk
 
                 total_spend += cost
+                total_savings += savings
                 total_input += inp
                 total_cached += cac
                 total_output += out
@@ -714,7 +1028,7 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 total_turns += t_count
 
                 # Classify provider
-                m_lower = m_name.lower()
+                m_lower = str(m_name).lower()
                 if 'claude' in m_lower or 'anthropic' in m_lower:
                     prov = "Anthropic Claude"
                 elif 'gpt' in m_lower or 'openai' in m_lower:
@@ -737,12 +1051,13 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                     app_breakdown[a_name]["turns"] += t_count
                     app_breakdown[a_name]["tokens"] += tot_tok
                 else:
-                    app_breakdown[a_name] = {"name": a_name, "spend": cost, "turns": t_count, "tokens": tot_tok}
+                    clean_app_name = str(a_name).replace("_", " ").title()
+                    app_breakdown[a_name] = {"name": clean_app_name, "spend": cost, "turns": t_count, "tokens": tot_tok}
 
                 matrix_rows.append({
                     "provider": prov,
-                    "model_name": m_name,
-                    "app_name": a_name,
+                    "model_name": str(m_name),
+                    "app_name": str(a_name),
                     "turns": t_count,
                     "input_tokens": inp,
                     "cached_tokens": cac,
@@ -770,29 +1085,48 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                     top_provider = prov_k
                     top_provider_share = round((top_spend / total_spend * 100), 1) if total_spend > 0 else 0.0
 
-            # Calculate Context Optimization Savings:
-            cached_token_savings = (total_cached / 1000000.0) * (0.30 - 0.075)
-            optimization_savings_dollars = max(0.0, round(cached_token_savings, 4))
-            theoretical_baseline_spend = total_spend + optimization_savings_dollars
-            optimization_savings_pct = round((optimization_savings_dollars / theoretical_baseline_spend * 100), 1) if theoretical_baseline_spend > 0 else 0.0
+            theoretical_baseline_spend = total_spend + total_savings
+            optimization_savings_pct = round((total_savings / theoretical_baseline_spend * 100), 1) if theoretical_baseline_spend > 0 else 0.0
 
             # Build timeline list
-            timeline_list = []
-            cum_cost = 0.0
+            timeline_dict = {}
             for tr in timeline_rows:
                 d_label = getattr(tr, 'date_label', '') or ''
-                d_cost = float(getattr(tr, 'daily_cost', 0.0) or 0.0)
-                d_toks = int(getattr(tr, 'daily_tokens', 0) or 0)
-                cum_cost += d_cost
+                d_toks = _safe_int(getattr(tr, 'daily_tokens', 0))
+                
+                raw_d_cost = getattr(tr, 'daily_cost', None)
+                if raw_d_cost is not None and not hasattr(raw_d_cost, '_mock_name'):
+                    c_cost = _safe_float(raw_d_cost)
+                else:
+                    m_n = getattr(tr, 'model_name', 'Gemini 3.5 Flash') or 'Gemini 3.5 Flash'
+                    i_t = _safe_int(getattr(tr, 'input_tokens', 0))
+                    c_t = _safe_int(getattr(tr, 'cached_tokens', 0))
+                    o_t = _safe_int(getattr(tr, 'output_tokens', 0))
+                    th_t = _safe_int(getattr(tr, 'thinking_tokens', 0))
+                    c_cost = self._calc_model_cost(m_n, i_t, c_t, o_t, th_t, cfg)["total_cost"]
+                
+                if d_label not in timeline_dict:
+                    timeline_dict[d_label] = {"date": d_label, "daily_cost": 0.0, "daily_tokens": 0}
+                timeline_dict[d_label]["daily_cost"] += c_cost
+                timeline_dict[d_label]["daily_tokens"] += d_toks
+
+            timeline_list = []
+            cum_cost = 0.0
+            for d_label in sorted(timeline_dict.keys()):
+                entry = timeline_dict[d_label]
+                cum_cost += entry["daily_cost"]
                 timeline_list.append({
                     "date": d_label,
-                    "daily_cost": round(d_cost, 5),
-                    "daily_tokens": d_toks,
+                    "daily_cost": round(entry["daily_cost"], 5),
+                    "daily_tokens": entry["daily_tokens"],
                     "cumulative_cost": round(cum_cost, 5)
                 })
 
             return {
                 "status": "success",
+                "data_source": "adk_bigquery_analytics" if is_adk_view else "token_logs",
+                "dataset": dataset_id,
+                "view": view_id if is_adk_view else "token_consumption_logs",
                 "timeframe": timeframe,
                 "provider": provider,
                 "kpis": {
@@ -806,7 +1140,7 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                     "blended_cost_per_1m": blended_cost_per_1m,
                     "top_provider": top_provider,
                     "top_provider_share": top_provider_share,
-                    "optimization_savings_dollars": optimization_savings_dollars,
+                    "optimization_savings_dollars": round(total_savings, 4),
                     "optimization_savings_pct": optimization_savings_pct
                 },
                 "provider_breakdown": provider_breakdown,
@@ -1012,14 +1346,24 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
                 "max_output_tokens": max_output_tokens
             }).encode('utf-8'))
 
+        elif path == '/api/bq/config':
+            cfg_data = self.get_bq_config()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(cfg_data).encode('utf-8'))
+
         elif path == '/api/bq/logs':
-            limit = query_params.get('limit', ['50'])[0]
-            offset = query_params.get('offset', ['0'])[0]
+            limit = int(query_params.get('limit', ['50'])[0])
+            offset = int(query_params.get('offset', ['0'])[0])
             app_name = query_params.get('app_name', [None])[0]
             session_id = query_params.get('session_id', [None])[0]
             search = query_params.get('search', [None])[0]
+            dataset = query_params.get('dataset', [None])[0]
+            table = query_params.get('table', [None])[0]
             
-            data = self.fetch_bq_explorer_logs(limit, offset, app_name, session_id, search)
+            data = self.fetch_bq_explorer_logs(app_name=app_name, session_id=session_id, search=search, limit=limit, offset=offset, dataset=dataset, table=table)
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
@@ -1027,7 +1371,9 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(data).encode('utf-8'))
 
         elif path == '/api/bq/stats':
-            stats = self.fetch_bq_stats()
+            dataset = query_params.get('dataset', [None])[0]
+            table = query_params.get('table', [None])[0]
+            stats = self.fetch_bq_stats(dataset=dataset, table=table)
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
@@ -1037,7 +1383,9 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
         elif path == '/api/finops/summary':
             timeframe = query_params.get('timeframe', ['all'])[0]
             provider = query_params.get('provider', ['all'])[0]
-            summary = self.fetch_finops_summary(timeframe=timeframe, provider=provider)
+            dataset = query_params.get('dataset', [None])[0]
+            view = query_params.get('view', [None])[0]
+            summary = self.fetch_finops_summary(timeframe=timeframe, provider=provider, dataset=dataset, view=view)
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
@@ -1152,7 +1500,29 @@ class AgentNexusHandler(http.server.SimpleHTTPRequestHandler):
             self.proxy_to_adk()
             return
 
-        if self.path == '/api/clear-metrics':
+        if self.path == '/api/bq/config':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                self.set_bq_config(payload)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "status": "success",
+                    "config": self.get_bq_config()
+                }).encode('utf-8'))
+            except Exception as e:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+            return
+
+        elif self.path == '/api/clear-metrics':
             print(">>> Clearing BigQuery and local metrics logs...")
             try:
                 now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
