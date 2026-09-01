@@ -327,6 +327,8 @@ class DynamicModel(BaseLlm):
         async for resp in active_llm.generate_content_async(llm_request, stream=stream):
             yield resp
 
+bq_plugin = shared_logic.get_bq_analytics_plugin()
+
 # 1. Naive App (Scenario 1)
 naive_agent = Agent(
     name="naive_agent",
@@ -336,7 +338,11 @@ naive_agent = Agent(
     tools=[shared_logic.search_travel_catalog, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
-naive_app = App(root_agent=naive_agent, name="naive_app")
+naive_app = App(
+    root_agent=naive_agent,
+    name="naive_app",
+    plugins=[bq_plugin] if bq_plugin else None
+)
 
 # 2. Caching App (Scenario 2)
 caching_agent = Agent(
@@ -350,7 +356,8 @@ caching_agent = Agent(
 caching_app = App(
     root_agent=caching_agent,
     name="caching_app",
-    context_cache_config=ContextCacheConfig(min_tokens=1024, ttl_seconds=300)
+    context_cache_config=ContextCacheConfig(min_tokens=1024, ttl_seconds=300),
+    plugins=[bq_plugin] if bq_plugin else None
 )
 
 # 3. Compaction App (Scenario 3)
@@ -365,7 +372,8 @@ compaction_agent = Agent(
 compaction_app = App(
     root_agent=compaction_agent,
     name="compaction_app",
-    events_compaction_config=EventsCompactionConfig(compaction_interval=4, overlap_size=1)
+    events_compaction_config=EventsCompactionConfig(compaction_interval=4, overlap_size=1),
+    plugins=[bq_plugin] if bq_plugin else None
 )
 
 # 4. Modular Skills App (Scenario 4)
@@ -377,7 +385,12 @@ skills_agent = Agent(
     tools=[shared_logic.activate_skill, shared_logic.google_search, shared_logic.google_news_search, shared_logic.web_search],
     after_model_callback=shared_logic.after_model_cb
 )
-skills_app = App(root_agent=skills_agent, name="skills_app")
+skills_app = App(
+    root_agent=skills_agent,
+    name="skills_app",
+    plugins=[bq_plugin] if bq_plugin else None
+)
 
 # Default app export
 app = naive_app
+

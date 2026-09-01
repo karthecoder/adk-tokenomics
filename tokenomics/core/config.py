@@ -92,7 +92,8 @@ class TokenomicsConfig:
     sink: str = "memory"  # "memory", "sqlite", "duckdb", "bigquery"
     project_id: Optional[str] = None
     dataset_id: str = "bq_adk_ds"
-    table_id: str = "token_consumption_logs"
+    table_id: str = "adk_agent_events"
+    view_id: str = "v_llm_response"
     default_model: str = "publishers/google/models/gemini-3.5-flash"
     models_config_path: Optional[str] = None
     async_streaming: bool = True

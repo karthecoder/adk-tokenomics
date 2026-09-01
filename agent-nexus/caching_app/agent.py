@@ -22,8 +22,12 @@ caching_agent = Agent(
     after_model_callback=shared_logic.after_model_cb
 )
 
+bq_plugin = shared_logic.get_bq_analytics_plugin()
+
 app = App(
     root_agent=caching_agent,
     name="caching_app",
-    context_cache_config=ContextCacheConfig(min_tokens=1024, ttl_seconds=300)
+    context_cache_config=ContextCacheConfig(min_tokens=1024, ttl_seconds=300),
+    plugins=[bq_plugin] if bq_plugin else None
 )
+

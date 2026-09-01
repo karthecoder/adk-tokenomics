@@ -28,7 +28,7 @@ class TokenControlTower:
         sink: Optional[str] = None,
         project_id: Optional[str] = None,
         dataset_id: str = "bq_adk_ds",
-        table_id: str = "token_consumption_logs",
+        table_id: str = "adk_agent_events",
         default_model: str = "publishers/google/models/gemini-3.5-flash"
     ):
         self.config = TokenomicsConfig(

@@ -1,13 +1,13 @@
 {
   "models": [
     {
-      "id": "publishers/google/models/gemini-3.5-flash",
-      "name": "Gemini 3.5 Flash",
+      "id": "gemini-2.5-flash",
+      "name": "Gemini 2.5 Flash",
       "provider": "google",
       "pricing": {
-        "input": 1.50,
-        "cached": 0.15,
-        "output": 9.00
+        "input": 0.30,
+        "cached": 0.075,
+        "output": 2.50
       },
       "thinking_budget": 0,
       "max_output_tokens": 8192,
@@ -15,13 +15,13 @@
       "allowed_max_output_tokens": [1024, 2048, 4096, 8192, 16384]
     },
     {
-      "id": "publishers/google/models/gemini-3.6-flash",
-      "name": "Gemini 3.6 Flash",
+      "id": "gemini-2.5-pro",
+      "name": "Gemini 2.5 Pro",
       "provider": "google",
       "pricing": {
-        "input": 1.50,
-        "cached": 0.15,
-        "output": 9.00
+        "input": 1.25,
+        "cached": 0.3125,
+        "output": 5.00
       },
       "thinking_budget": 4096,
       "max_output_tokens": 8192,
@@ -29,13 +29,13 @@
       "allowed_max_output_tokens": [1024, 2048, 4096, 8192, 16384]
     },
     {
-      "id": "publishers/google/models/gemini-3.7-flash",
+      "id": "gemini-3.7-flash",
       "name": "Gemini 3.7 Flash",
       "provider": "google",
       "pricing": {
-        "input": 2.00,
-        "cached": 0.20,
-        "output": 12.00
+        "input": 0.30,
+        "cached": 0.075,
+        "output": 2.50
       },
       "thinking_budget": 4096,
       "max_output_tokens": 8192,
@@ -43,18 +43,32 @@
       "allowed_max_output_tokens": [1024, 2048, 4096, 8192, 16384]
     },
     {
-      "id": "claude-sonnet-5",
-      "name": "Claude Sonnet 5",
+      "id": "claude-3-7-sonnet",
+      "name": "Claude 3.7 Sonnet",
       "provider": "anthropic",
       "pricing": {
-        "input": 2.00,
-        "cached": 0.20,
-        "output": 10.00
+        "input": 3.00,
+        "cached": 0.75,
+        "output": 15.00
       },
       "thinking_budget": "high",
       "max_output_tokens": 8192,
       "allowed_thinking_budgets": ["off", "low", "medium", "high"],
       "allowed_max_output_tokens": [1024, 2048, 4096, 8192, 16384]
+    },
+    {
+      "id": "gpt-4o",
+      "name": "OpenAI GPT-4o",
+      "provider": "openai",
+      "pricing": {
+        "input": 2.50,
+        "cached": 1.25,
+        "output": 10.00
+      },
+      "thinking_budget": 0,
+      "max_output_tokens": 4096,
+      "allowed_thinking_budgets": [0],
+      "allowed_max_output_tokens": [1024, 2048, 4096, 8192]
     }
   ]
 }

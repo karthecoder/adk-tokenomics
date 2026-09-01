@@ -22,8 +22,12 @@ compaction_agent = Agent(
     after_model_callback=shared_logic.after_model_cb
 )
 
+bq_plugin = shared_logic.get_bq_analytics_plugin()
+
 app = App(
     root_agent=compaction_agent,
     name="compaction_app",
-    events_compaction_config=EventsCompactionConfig(compaction_interval=4, overlap_size=1)
+    events_compaction_config=EventsCompactionConfig(compaction_interval=4, overlap_size=1),
+    plugins=[bq_plugin] if bq_plugin else None
 )
+

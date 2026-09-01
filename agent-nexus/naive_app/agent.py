@@ -21,7 +21,11 @@ naive_agent = Agent(
     after_model_callback=shared_logic.after_model_cb
 )
 
+bq_plugin = shared_logic.get_bq_analytics_plugin()
+
 app = App(
     root_agent=naive_agent,
-    name="naive_app"
+    name="naive_app",
+    plugins=[bq_plugin] if bq_plugin else None
 )
+

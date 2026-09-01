@@ -279,107 +279,48 @@ Relative paths in this skill are relative to the skill directory.
         return f"Error: Failed to activate skill '{name}': {e}"
 
 
-def write_metrics_to_bq(session_id, app_name, user_query, agent_response, prompt_tokens, cached_tokens, output_tokens, cost, source="playground", model_name=None, thinking_tokens=0, invoked_tools=None, invoked_skills=None):
-    from google.cloud import bigquery
-    from google.cloud.exceptions import NotFound
-    import datetime
+_BQ_ANALYTICS_PLUGIN_INSTANCE = None
 
-    try:
-        client = bigquery.Client()
-        project = client.project
-        dataset_id = "bq_adk_ds"
-        table_id = "token_consumption_logs"
-        full_table_id = f"{project}.{dataset_id}.{table_id}"
-        
-        # Verify dataset exists, if not, fallback to karticn_adk_demo
+def get_bq_analytics_plugin():
+    """Returns a singleton instance of the official ADK BigQueryAgentAnalyticsPlugin."""
+    global _BQ_ANALYTICS_PLUGIN_INSTANCE
+    if _BQ_ANALYTICS_PLUGIN_INSTANCE is None:
         try:
-            client.get_dataset(f"{project}.{dataset_id}")
-        except NotFound:
-            dataset_id = "karticn_adk_demo"
-            full_table_id = f"{project}.{dataset_id}.{table_id}"
-            try:
-                client.get_dataset(f"{project}.{dataset_id}")
-            except NotFound:
-                # If neither exists, create bq_adk_ds
-                dataset_id = "bq_adk_ds"
-                full_table_id = f"{project}.{dataset_id}.{table_id}"
-                dataset = bigquery.Dataset(f"{project}.{dataset_id}")
-                dataset.location = "us-central1"
-                client.create_dataset(dataset)
-                print(f"[BQ] Created dataset: {dataset_id}", flush=True)
-
-        # Schema definition
-        schema = [
-            bigquery.SchemaField("timestamp", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField("session_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("app_name", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("user_query", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("agent_response", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("prompt_tokens", "INTEGER", mode="REQUIRED"),
-            bigquery.SchemaField("cached_tokens", "INTEGER", mode="REQUIRED"),
-            bigquery.SchemaField("output_tokens", "INTEGER", mode="REQUIRED"),
-            bigquery.SchemaField("thinking_tokens", "INTEGER", mode="NULLABLE"),
-            bigquery.SchemaField("estimated_cost", "FLOAT", mode="REQUIRED"),
-            bigquery.SchemaField("source", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("model_name", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("invoked_tools", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("invoked_skills", "STRING", mode="NULLABLE"),
-        ]
-
-        # Verify table exists, if not, create it
-        try:
-            table = client.get_table(full_table_id)
-            schema_fields = [f.name for f in table.schema]
-            new_fields = []
-            if "model_name" not in schema_fields:
-                new_fields.append(bigquery.SchemaField("model_name", "STRING", mode="NULLABLE"))
-            if "thinking_tokens" not in schema_fields:
-                new_fields.append(bigquery.SchemaField("thinking_tokens", "INTEGER", mode="NULLABLE"))
-            if "invoked_tools" not in schema_fields:
-                new_fields.append(bigquery.SchemaField("invoked_tools", "STRING", mode="NULLABLE"))
-            if "invoked_skills" not in schema_fields:
-                new_fields.append(bigquery.SchemaField("invoked_skills", "STRING", mode="NULLABLE"))
-                
-            if new_fields:
-                print(f"[BQ] Schema migration: Adding {[f.name for f in new_fields]} columns to {full_table_id}", flush=True)
-                table.schema = list(table.schema) + new_fields
-                client.update_table(table, ["schema"])
-        except NotFound:
-            table = bigquery.Table(full_table_id, schema=schema)
-            table.time_partitioning = bigquery.TimePartitioning(
-                type_=bigquery.TimePartitioningType.DAY,
-                field="timestamp"
+            from google.adk.plugins.bigquery_agent_analytics_plugin import (
+                BigQueryAgentAnalyticsPlugin,
+                BigQueryLoggerConfig
             )
-            client.create_table(table)
-            print(f"[BQ] Created table: {full_table_id}", flush=True)
+            project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "vertexai-demo-ltfpzhaw")
+            dataset_id = os.environ.get("BQ_ANALYTICS_DATASET_ID", "bq_adk_ds")
+            table_id = os.environ.get("BQ_ANALYTICS_TABLE_ID", "adk_agent_events")
+            location = os.environ.get("GOOGLE_CLOUD_LOCATION", "US")
 
-        # Prepare row data
-        row_to_insert = {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "session_id": str(session_id),
-            "app_name": str(app_name),
-            "user_query": str(user_query) if user_query else None,
-            "agent_response": str(agent_response) if agent_response else None,
-            "prompt_tokens": int(prompt_tokens),
-            "cached_tokens": int(cached_tokens),
-            "output_tokens": int(output_tokens),
-            "thinking_tokens": int(thinking_tokens),
-            "estimated_cost": float(cost),
-            "source": str(source),
-            "model_name": str(model_name) if model_name else str(DEFAULT_MODEL),
-            "invoked_tools": str(invoked_tools) if invoked_tools else None,
-            "invoked_skills": str(invoked_skills) if invoked_skills else None,
-        }
+            logger_config = BigQueryLoggerConfig(
+                table_id=table_id,
+                batch_size=1,
+                batch_flush_interval=0.5,
+                create_views=True,
+                view_prefix="v"
+            )
+            _BQ_ANALYTICS_PLUGIN_INSTANCE = BigQueryAgentAnalyticsPlugin(
+                project_id=project_id,
+                dataset_id=dataset_id,
+                config=logger_config,
+                location=location
+            )
+            print(f"[BQ Plugin] Attached official BigQueryAgentAnalyticsPlugin ({project_id}.{dataset_id}.{table_id})", flush=True)
+        except Exception as e:
+            print(f"[BQ Plugin] Notice: BigQueryAgentAnalyticsPlugin not loaded ({e})", flush=True)
+            _BQ_ANALYTICS_PLUGIN_INSTANCE = None
+    return _BQ_ANALYTICS_PLUGIN_INSTANCE
 
-        # Insert rows using streaming insert API
-        errors = client.insert_rows_json(full_table_id, [row_to_insert])
-        if errors:
-            print(f"[ERROR] BigQuery insert failed: {errors}", flush=True)
-        else:
-            print(f"[BQ] Logged turn to {full_table_id} successfully (tools: {invoked_tools}, skills: {invoked_skills}).", flush=True)
 
-    except Exception as e:
-        print(f"[ERROR] BigQuery writing failed: {e}", flush=True)
+def write_metrics_to_bq(session_id, app_name, user_query, agent_response, prompt_tokens, cached_tokens, output_tokens, cost, source="playground", model_name=None, thinking_tokens=0, invoked_tools=None, invoked_skills=None):
+    """
+    Telemetry recorder.
+    BigQuery streaming is handled natively by the official BigQueryAgentAnalyticsPlugin attached to App/Runner.
+    """
+    pass
 
 
 def prune_thoughts_from_history(callback_context, **kwargs):
